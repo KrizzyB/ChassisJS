@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Welcome - ChassisJS</title>
+    <script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ=" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/tether/1.3.1/js/tether.min.js"></script>
+    <link rel="stylesheet" href="//cdn.materialdesignicons.com/1.9.32/css/materialdesignicons.min.css">
+    <style>
+        body {
+            background: #2a2927;
+        }
+
+        #content {
+            width: 800px;
+            margin: 0 auto;
+            padding: 5px;
+            background: white;
+        }
+
+        label, input {
+            display: inline-block;
+        }
+
+        .alert {
+            display: none;
+        }
+
+        .loading {
+            background: white;
+            border: 3px solid black;
+            border-radius: 25px;
+            width: 250px;
+            height: 250px;
+            padding: 25px;
+            position: absolute;
+            z-index: 5;
+            margin: -125px -125px;
+            top: 50%;
+            left: 50%;
+            display: none;
+        }
+
+        .loading img {
+            margin: 0 auto;
+            display: block;
+        }
+
+        #page-2, #page-3, #page-4, #page-5 {
+            display: none;
+        }
+
+        .facebook-user-div {
+            text-align: center;
+        }
+        #facebook-img {
+            width: 300px;
+        }
+
+        #complete-img {
+            width: 500px;
+        }
+
+        .bs-wizard {margin-top: 0;}
+
+        /*Form Wizard*/
+        .bs-wizard {border-bottom: solid 1px #e0e0e0; padding: 0 0 10px 0;}
+        .bs-wizard > .bs-wizard-step {padding: 0; position: relative;}
+        .bs-wizard > .bs-wizard-step + .bs-wizard-step {}
+        .bs-wizard > .bs-wizard-step .bs-wizard-stepnum {color: #595959; font-size: 16px; margin-bottom: 5px;}
+        .bs-wizard > .bs-wizard-step .bs-wizard-info {color: #999; font-size: 14px;}
+        .bs-wizard > .bs-wizard-step > .bs-wizard-dot {position: absolute; width: 30px; height: 30px; display: block; background: #fbe8aa; top: 45px; left: 50%; margin-top: -15px; margin-left: -15px; border-radius: 50%;}
+        .bs-wizard > .bs-wizard-step > .bs-wizard-dot:after {content: ' '; width: 14px; height: 14px; background: #fbbd19; border-radius: 50px; position: absolute; top: 8px; left: 8px; }
+        .bs-wizard > .bs-wizard-step > .progress {position: relative; border-radius: 0px; height: 8px; box-shadow: none; margin: 20px 0;}
+        .bs-wizard > .bs-wizard-step > .progress > .progress-bar {width:0px; box-shadow: none; background: #fbe8aa;}
+        .bs-wizard > .bs-wizard-step.complete > .progress > .progress-bar {width:100%;}
+        .bs-wizard > .bs-wizard-step.active > .progress > .progress-bar {width:50%;}
+        .bs-wizard > .bs-wizard-step:first-child.active > .progress > .progress-bar {width:0%;}
+        .bs-wizard > .bs-wizard-step:last-child.active > .progress > .progress-bar {width: 100%;}
+        .bs-wizard > .bs-wizard-step.disabled > .bs-wizard-dot {background-color: #f5f5f5;}
+        .bs-wizard > .bs-wizard-step.disabled > .bs-wizard-dot:after {opacity: 0;}
+        .bs-wizard > .bs-wizard-step:first-child  > .progress {left: 50%; width: 50%;}
+        .bs-wizard > .bs-wizard-step:last-child  > .progress {width: 50%;}
+        .bs-wizard > .bs-wizard-step.disabled a.bs-wizard-dot{ pointer-events: none; }
+        /*END Form Wizard*/
+    </style>
+
+    <script>
+        var config = new Object();  //store config data to send to server
+        var siteName = "";
+        var user = new Object();    //store admin user to send to database
+
+        $(document).ready(function () {
+
+            function displayMsg(type, message) {
+                var classes = ["alert-success", "alert-info", "alert-warning", "alert-danger"];
+                for (var i=0; i < classes.length; i++) {
+                    $("#error-msg").removeClass(classes[i]);
+                }
+                $("#error-msg").addClass("alert-" + type).html(message).show();
+            }
+
+            //auto fill db inputs
+
+            $("#db-host").focus(function() {
+                if ($(this).val() === "") {
+                    $(this).val("mongodb://");
+                }
+            });
+
+            $("#db-port").focus(function() {
+                if ($(this).val() === "") {
+                    $(this).val("27017");
+                }
+            });
+
+            function testDatabase(submit) {
+                //validate inputs
+                var input = $(".db");
+                var valid = true;
+
+                //clear any current errors
+                $("#error-msg").hide();
+                for (var i=0; i<input.length; i++) {
+                    $(input[i]).children(".input-group").removeClass("has-danger");
+                }
+                $("#submit-db").removeClass("btn-success").addClass("btn-warning");
+
+                //check for empties
+                for (var i=0; i<input.length; i++) {
+                    if ($(input[i]).children(".input-group").children("input").val() == "") {
+                        $(input[i]).children(".input-group").addClass("has-danger");
+                        valid = false;
+                    }
+                }
+
+                //try database connection
+                if (valid) {
+
+                    $(".loading").fadeIn();
+
+                    config.mongodb = {dbName: $("#db-name").val(), host: $("#db-host").val(), port: $("#db-port").val(), username: $("#db-username").val(), password: $("#db-password").val()};
+
+                    $.ajax({
+                        type: "POST",
+                        url: "setup/db-test",
+                        contentType: "application/json",
+                        dataType: 'json',
+                        data: JSON.stringify(config),
+                        timeout: 5000,
+                        success: function (response) {
+                            var data = JSON.parse(response);
+                            if (data.status == "success") {
+                                $(".loading").fadeOut();
+                                if (submit) {   //when pressing next
+                                    $("#page-1").fadeOut(function() {
+                                        $("#page-2").fadeIn();
+                                    });
+                                    $("#step-db").removeClass("active").addClass("complete");
+                                    $("#step-web").removeClass("disabled").addClass("active");
+                                } else {    //when testing connection
+                                    displayMsg("success", "Database connected!");   //show success message
+                                    $("#submit-db").removeClass("btn-warning disabled").addClass("btn-success");    //activate submit button
+                                }
+                            } else {
+                                $(".loading").fadeOut();
+                                displayMsg("danger", data.message);
+                            }
+                        },
+                        error: function () {
+                            $(".loading").fadeOut();
+                            displayMsg("danger", "Cannot connect to database, check your details.");
+                        }
+                    });
+                }
+            }
+
+            $("#test-db").on("click", function () {
+                testDatabase(false);
+            });
+
+
+            $("#submit-db").on("click", function() {
+                testDatabase(true);
+            });
+
+            $("#submit-web").on("click", function() {
+
+                //validate inputs
+                var input = $(".web");
+                var valid = true;
+
+                //clear any current errors
+                $("#error-msg").hide();
+                for (var i=0; i<input.length; i++) {
+                    $(input[i]).children(".input-group").removeClass("has-danger");
+                }
+                $("#submit-db").removeClass("btn-success").addClass("btn-warning");
+
+                //check for empties
+                for (var i=0; i<input.length; i++) {
+                    if ($(input[i]).children(".input-group").children("input").val() == "") {
+                        $(input[i]).children(".input-group").addClass("has-danger");
+                        valid = false;
+                    }
+                }
+
+                //save inputs
+                if (valid) {
+                    siteName = $("#web-name").val();
+                    config.listen = $("#web-port").val();
+                    //change page
+                    $("#page-2").fadeOut(function() {
+                        $("#page-3").fadeIn();
+                    });
+                    $("#step-web").removeClass("active").addClass("complete");
+                    $("#step-fb").removeClass("disabled").addClass("active");
+                }
+
+            });
+
+            $("#test-fb").on("click", function () {
+
+                //validate inputs
+                var input = $(".fb");
+                var valid = true;
+
+                //clear any current errors
+                $("#error-msg").hide();
+                for (var i=0; i<input.length; i++) {
+                    $(input[i]).children(".input-group").removeClass("has-danger");
+                }
+                $("#submit-db").removeClass("btn-success").addClass("btn-warning");
+
+                //check for empties
+                for (var i=0; i<input.length; i++) {
+                    if ($(input[i]).children(".input-group").children("input").val() == "") {
+                        $(input[i]).children(".input-group").addClass("has-danger");
+                        valid = false;
+                    }
+                }
+
+                //try facebook connection
+                if (valid) {
+
+                    $(".loading").fadeIn();
+
+                    var appID = $("#fb-appid").val();
+
+                    //check facebook app exists
+
+                    $.ajax({
+                        type: "GET",
+                        url: "http://graph.facebook.com/" + appID,
+                        contentType: "application/json",
+                        dataType: 'json',
+                        timeout: 5000,
+                        success: function (response) {
+                            $.getScript('//connect.facebook.net/en_US/sdk.js', function() {
+                                FB.init({
+                                    appId: appID,
+                                    xfbml: true,
+                                    version: 'v2.8',
+                                    status: true
+                                });
+                                $(".loading").fadeOut();
+                                $("#next-fb").removeClass("btn-warning disabled").addClass("btn-success");    //activate next button
+                            })
+                        },
+                        error: function () {
+                            $(".loading").fadeOut();
+                            displayMsg("danger", "Unable to connect to Facebook app.");
+                        }
+                    });
+                }
+            });
+
+            $("#next-fb").on("click", function() {
+                FB.login(function(response){
+                    if (response.status === 'connected') {
+                        FB.api('/me?fields=id,first_name,last_name,email,picture.width(500).height(500)', function(profile) {
+                            $(".loading").fadeOut();
+                            user = {img: profile.picture.data.url, firstName: profile.first_name, secondName: profile.last_name, email: profile.email, facebookID: profile.id};
+
+                            //store details to config
+                            config.facebook = {appId: $("#fb-appid").val(), secret: $("#fb-secret").val()};
+
+                            //save config to server
+                            $.ajax({
+                                type: "POST",
+                                url: "setup/save-config",
+                                contentType: "application/json",
+                                dataType: 'json',
+                                data: JSON.stringify(config),
+                                timeout: 5000,
+                                success: function (response) {
+                                    var data = JSON.parse(response);
+                                    if (data.status == "success") {
+                                        //change profile info
+                                        $("#facebook-img").attr("src", user.img);
+                                        $("#facebook-username").html(user.firstName + " " + user.secondName);
+                                        $("#facebook-email").html(user.email);
+
+
+                                        $(".loading").fadeOut();
+                                        //change page
+                                        $("#page-3").fadeOut(function() {
+                                            $("#page-4").fadeIn();
+                                        });
+                                    } else {
+                                        $(".loading").fadeOut();
+                                        displayMsg("danger", data.message);
+                                    }
+                                },
+                                error: function () {
+                                    $(".loading").fadeOut();
+                                    displayMsg("danger", "An unknown error occurred.");
+                                }
+                            });
+
+
+                        });
+                    } else {
+                        $(".loading").fadeOut();
+                        displayMsg("danger", "Unable to connect to Facebook app, please check your details.");
+                    }
+                }, {scope: 'public_profile,email'});
+            });
+
+
+            $("#confirm-install").on("click", function() {
+                $(".loading").fadeIn();
+
+                //send admin user info
+                user.username = "Administrator";
+                user.role = "Administrator";
+                $.ajax({
+                    type: "POST",
+                    url: "setup/create-admin",
+                    contentType: "application/json",
+                    dataType: 'json',
+                    data: JSON.stringify(user),
+                    timeout: 5000,
+                    success: function (response) {
+                        var data = response;
+                        if (data.status == "success") {
+                            $.ajax({
+                                type: "POST",
+                                url: "setup/sitename",
+                                contentType: "application/json",
+                                dataType: 'json',
+                                data: '{"name": "siteName", "data": "' + siteName + '"}',
+                                timeout: 5000,
+                                success: function (response) {
+                                    var data = response;
+                                    if (data.status == "success") {
+                                        //complete
+                                        $(".loading").fadeOut();
+                                        $("#page-4").fadeOut(function() {
+                                            $("#page-5").fadeIn();
+                                        });
+                                        $("#step-fb").removeClass("active").addClass("complete");
+                                        $("#step-complete").removeClass("disabled").addClass("active");
+
+                                        setTimeout(function(){
+                                            if (config.listen != "80") {
+                                                window.location.replace(window.location.protocol + "//" +  window.location.hostname + ":" + config.listen);
+                                            } else {
+                                                window.location.replace(window.location.protocol + "//" +  window.location.hostname);
+                                            }
+                                        }, 5000);
+                                    } else {
+                                        $(".loading").fadeOut();
+                                        displayMsg("danger", response.data);
+                                    }
+                                },
+                                error: function () {
+                                    $(".loading").fadeOut();
+                                    displayMsg("danger", "An unknown error occurred");
+                                }
+                            });
+                        } else {
+                            $(".loading").fadeOut();
+                            displayMsg("danger", response.data);
+                        }
+                    },
+                    error: function () {
+                        $(".loading").fadeOut();
+                        displayMsg("danger", "An unknown error occurred");
+                    }
+                });
+            });
+
+        });
+    </script>
+</head>
+<body>
+
+<div id="content">
+    <div class="alert alert-danger" id="error-msg"></div>
+
+    <div class="container">
+
+        <div class="row bs-wizard" style="border-bottom:0;">
+
+            <div class="col-sm-3 bs-wizard-step active" id="step-db">
+                <div class="text-center bs-wizard-stepnum">Connect to Database</div>
+                <div class="progress"><div class="progress-bar"></div></div>
+                <a class="bs-wizard-dot"></a>
+            </div>
+
+            <div class="col-sm-3 bs-wizard-step disabled" id="step-web">
+                <div class="text-center bs-wizard-stepnum">Website Settings</div>
+                <div class="progress"><div class="progress-bar"></div></div>
+                <a class="bs-wizard-dot"></a>
+            </div>
+
+            <div class="col-sm-3 bs-wizard-step disabled" id="step-fb">
+                <div class="text-center bs-wizard-stepnum">Connect to Facebook</div>
+                <div class="progress"><div class="progress-bar"></div></div>
+                <a class="bs-wizard-dot"></a>
+            </div>
+
+            <div class="col-sm-3 bs-wizard-step disabled" id="step-complete">
+                <div class="text-center bs-wizard-stepnum">Complete</div>
+                <div class="progress"><div class="progress-bar"></div></div>
+                <a class="bs-wizard-dot"></a>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading">
+        <img src="img/setup-loading.gif">
+    </div>
+
+    <div id = "page-1">
+
+        <h2>Database Setup</h2>
+        <hr>
+        <p>The following information is needed to complete the installation of your site.</p>
+
+        <form>
+
+            <div class="form-group db">
+                <label for="db-host">Database Host:</label>
+                <div class="input-group">
+                    <div class="input-group-addon"><span class="mdi mdi-database"></span></div>
+                    <input type="text" class="form-control" id="db-host" aria-describedby="db-host-help" placeholder="mongodb://">
+                </div>
+                <small id="db-host-help" class="form-text text-muted">Location of your database. Use "localhost" if the database is on the same server as Chassis.</small>
+            </div>
+
+            <div class="form-group db">
+                <label for="db-port">Database Port:</label>
+                <div class="input-group">
+                    <div class="input-group-addon"><span class="mdi mdi-network"></span></div>
+                    <input type="text" class="form-control" id="db-port" aria-describedby="db-port-help" placeholder="27017">
+                </div>
+                <small id="db-port-help" class="form-text text-muted">The port number your database listens on. The default port for MongoDB is "27017".</small>
+            </div>
+
+            <div class="form-group db">
+                <label for="db-name">Database Name:</label>
+                <div class="input-group">
+                    <div class="input-group-addon"><span class="mdi mdi-label"></span></div>
+                    <input type="text" class="form-control" id="db-name" aria-describedby="db-name-help" placeholder="Chassis">
+                </div>
+                <small id="db-name-help" class="form-text text-muted">Name of the database you wish to use for ChassisJS.</small>
+            </div>
+
+            <div class="form-group db">
+                <label for="db-username">Database Username:</label>
+                <div class="input-group">
+                    <div class="input-group-addon"><span class="mdi mdi-account"></span></div>
+                    <input type="text" class="form-control" id="db-username" aria-describedby="db-username-help">
+                </div>
+                <small id="db-username-help" class="form-text text-muted">Username for your database.</small>
+            </div>
+
+            <div class="form-group db">
+                <label for="db-password">Database Password:</label>
+                <div class="input-group">
+                    <div class="input-group-addon"><span class="mdi mdi-lock"></span></div>
+                    <input type="password" class="form-control" id="db-password" aria-describedby="db-password-help">
+                </div>
+                <small id="db-password-help" class="form-text text-muted">Password for your database.</small>
+            </div>
+
+            <div class="form-group db">
+                <div class="text-right">
+                    <button type="button" class="btn btn-primary" id="test-db">Test Connection</button>
+                    <button type="button" class="btn btn-warning disabled" id="submit-db">Next ></button>
+                </div>
+            </div>
+
+        </form>
+    </div> <!--end page-1-->
+
+    <div id = "page-2">
+        <h2>Website Settings</h2>
+        <hr>
+        <p>The following information is used to personalise your site, this can be changed later.</p>
+
+        <form>
+
+            <div class="form-group web">
+                <label for="web-name">Website Name:</label>
+                <div class="input-group">
+                    <div class="input-group-addon"><span class="mdi mdi-web"></span></div>
+                    <input type="text" class="form-control" id="web-name" aria-describedby="web-name-help">
+                </div>
+                <small id="web-name-help" class="form-text text-muted">The title of your website.</small>
+            </div>
+
+            <div class="form-group web">
+                <label for="web-port">Website Port:</label>
+                <div class="input-group">
+                    <div class="input-group-addon"><span class="mdi mdi-network"></span></div>
+                    <input type="text" class="form-control" id="web-port" aria-describedby="web-port-help" placeholder="80">
+                </div>
+                <small id="web-port-help" class="form-text text-muted">The port number you wish your site to listen on. Default: 80.</small>
+            </div>
+
+            <div class="form-group web">
+                <div class="text-right">
+                    <button type="button" class="btn btn-success" id="submit-web">Next ></button>
+                </div>
+            </div>
+
+        </form>
+    </div> <!--end page-2-->
+
+    <div id = "page-3">
+        <h2>Connect to Facebook</h2>
+        <hr>
+        <p>Chassis uses Facebook accounts to authenticate users, enter your site's Facebook App information below to connect your site to Facebook.</p>
+
+        <form>
+
+            <div class="form-group fb">
+                <label for="fb-appid">Facebook App ID:</label>
+                <div class="input-group">
+                    <div class="input-group-addon"><span class="mdi mdi-database"></span></div>
+                    <input type="text" class="form-control" id="fb-appid" aria-describedby="fb-appid-help">
+                </div>
+                <small id="fb-appid-help" class="form-text text-muted">The unique ID of your Facebook app, can be found on your <a href="https://developers.facebook.com/apps/" target="_blank">Facebook Developer console</a>.</small>
+            </div>
+
+            <div class="form-group fb">
+                <label for="fb-secret">App Secret:</label>
+                <div class="input-group">
+                    <div class="input-group-addon"><span class="mdi mdi-network"></span></div>
+                    <input type="text" class="form-control" id="fb-secret" aria-describedby="fb-secret-help">
+                </div>
+                <small id="fb-secret-help" class="form-text text-muted">The unique app secret code, can be found on your <a href="https://developers.facebook.com/apps/" target="_blank">Facebook Developer console</a>.</small>
+            </div>
+
+            <div class="form-group fb">
+                <div class="text-right">
+                    <button type="button" class="btn btn-primary" id="test-fb">Connect Facebook App</button>
+                    <button type="button" class="btn btn-warning disabled" id="next-fb">Create Account ></button>
+                </div>
+            </div>
+
+        </form>
+    </div> <!--end page-3-->
+
+    <div id = "page-4">
+        <h2>Create Your Account</h2>
+        <hr>
+        <p>Your Facebook account will now be made administrator of your site. If the details below do not match your Facebook profile, log in to the correct account and start the setup again.</p>
+
+        <div class="facebook-user-div">
+            <img src="" id="facebook-img">
+            <h1 id="facebook-username"></h1>
+            <h3 id="facebook-email"></h3>
+        </div>
+
+        <div class="form-group fb">
+            <div class="text-right">
+                <button type="button" class="btn btn-primary" id="confirm-install">Confirm</button>
+            </div>
+        </div>
+
+    </div> <!--end page-4-->
+
+    <div id = "page-5">
+        <h2>Complete!</h2>
+        <hr>
+        <p>Setup is complete! The server is now restarting, this page will refresh in approx 5 seconds</p>
+
+        <div class="facebook-user-div">
+            <img src="img/complete.png" id="complete-img">
+        </div>
+
+    </div> <!--end page-5-->
+</div>
+
+</body>
+</html>

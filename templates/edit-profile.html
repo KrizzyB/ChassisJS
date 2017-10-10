@@ -1,0 +1,14 @@
+<div id="content" ng-controller="editProfileController">
+
+    <div id="user">
+        <img id="user-picture" ng-src="{{user.img}}">
+        <h1 id="user-username">{{user.username}}</h1>
+        <span><h3>Name:</h3> <p>{{user.firstName}} {{user.secondName}}</p></span>
+        <span><h3>Email:</h3> <p>{{user.email}}</p></span>
+        <span><h3>Website:</h3> <input id="user-website" ng-model="user.website"></span>
+        <span><h3>Bio:</h3> <textarea id="user-bio" cols="50" rows="10" ng-model="user.bio"></textarea></span>
+        <br>
+        <input type="button" id="profile-submit" value="Submit">
+    </div>
+
+</div>

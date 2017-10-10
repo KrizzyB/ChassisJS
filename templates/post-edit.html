@@ -1,0 +1,134 @@
+<!-- Main Quill library -->
+<script src="//cdn.quilljs.com/1.2.0/quill.js"></script>
+<script src="//cdn.quilljs.com/1.2.0/quill.min.js"></script>
+
+<!-- Theme included stylesheets -->
+<link href="//cdn.quilljs.com/1.2.0/quill.snow.css" rel="stylesheet">
+
+<script>
+    $(document).ready(function() {
+        var quill = new Quill('#editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],        // toggled buttons
+                    ['blockquote', 'code-block'],
+
+                    [{ 'header': 1 }, { 'header': 2 }],               // custom button values
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'script': 'sub'}, { 'script': 'super' }],      // superscript/subscript
+                    [{ 'indent': '-1'}, { 'indent': '+1' }],          // outdent/indent
+                    [{ 'direction': 'rtl' }],                         // text direction
+
+                    [{ 'size': ['small', false, 'large', 'huge'] }],  // custom dropdown
+                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                    [ 'link', 'image', 'formula' ],          // add's image support
+                    [{ 'color': [] }, { 'background': [] }],          // dropdown with defaults from theme
+                    [{ 'font': [] }],
+                    [{ 'align': [] }],
+
+                    ['clean']                                         // remove formatting button
+                ]
+            }
+        });
+    });
+</script>
+
+<div id="content" ng-controller="postEditController">
+
+    <div id="column-left">
+        <div id="post">
+            <h2>Post Content</h2>
+            <div class="form-group">
+            <label for="post-title">Title:</label>
+                <input type="text" class="form-control" id="post-title" aria-describedby="titleHelp">
+                <div class="form-feedback" id="post-title-feedback">You must enter a title for your post.</div>
+                <small id="titleHelp" class="form-text text-muted">Enter an eye-catching title for your post.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="post-subtitle">Subtitle:</label>
+                <input type="text" class="form-control" id="post-subtitle" aria-describedby="subtitleHelp">
+                <small id="subtitleHelp" class="form-text text-muted">Expand your title with a subtitle. (Optional)</small>
+            </div>
+
+            <div class="form-group">
+                <label for="post-permalink">Permalink:</label>
+                <div class="form-inline">
+                    <div class="input-group">
+                        <span class="input-group-addon" id="post-permalink-host">http://example.com/posts/</span>
+                        <input type="text" class="form-control" id="post-permalink" aria-describedby="post-permalink-host" readonly>
+                    </div>
+                    &nbsp;
+                    <label class="form-check-label">
+                        <input class="form-check-input" type="checkbox" id="post-permalink-manual-toggle">
+                        Manual
+                    </label>
+                </div>
+                <div class="form-feedback" id="post-permalink-feedback">Your post must contain a permalink.</div>
+                <div class="form-feedback" id="post-permalink-feedback-unique">Sorry, a post with this permalink already exists.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="editor">Post:</label>
+                <div id="editor"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="post-excerpt">Post Excerpt:</label>
+                <textarea class="form-control" id="post-excerpt" rows="3" aria-describedby="excerptHelp"></textarea>
+                <small id="excerptHelp" class="form-text text-muted">Enter a short excerpt of your post to be displayed in search results. (Optional)</small>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="column-right">
+        <div class="sidebar">
+
+            <div id="post-metadata" class="sidebar-content">
+                <h2>Post Details</h2>
+                <div class="form-group">
+                    <label for="post-date" class="col-1 col-form-label">Date:</label>
+                    <div class="col-8">
+                        <input class="form-control" type="date" value="" id="post-date">
+                        <div class="form-feedback" id="post-date-feedback">Please enter a valid date.</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div id="img-upload">
+                        <label for="img-upload-iframe" class="col-1 col-form-label">Image Upload:</label>
+                        <iframe id = "img-upload-iframe" name="img-upload-iframe" src="/html/image-upload.html" frameBorder="0" scrolling="no" aria-describedby="imgHelp"></iframe>
+                        <small id="imgHelp" class="form-text">Upload an image then drag and drop into the text editor or copy the link and insert using an img tag. Click <a href="#" onclick="window.parent.frames[0].history.back()">here</a> to upload another image.</small>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="post-categories" class="col-1 col-form-label">Category:</label>
+                    <div id="post-categories">
+                        <select id="category">
+                            <option ng-repeat="category in categories" ng-value="category.name">{{category.name}}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="post-tags" class="col-1 col-form-label">Tags:</label>
+                    <div class="col-8">
+                        <input type="text" class="form-control" id="post-tags" aria-describedby="tagsHelp">
+                        <small id="tagsHelp" class="form-text">tags,separated,by,commas</small>
+                        <div class="form-feedback" id="post-tags-feedback">Your post must contain at least 1 tag.</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <button type="button" class="btn btn-primary" id="post-submit">Submit</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+</div>

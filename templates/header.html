@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="chassis" ng-controller="contentController" id="page">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="/css/style.css">
+    <script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ=" crossorigin="anonymous"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+    <script type="application/javascript" src="/js/chassis.js"></script>
+    <title ng-bind="siteName"></title>
+</head>
+<body>
+
+<div id="header">
+    <div id="header-container">
+        <div id="user-menu">
+            <a href="{{newPostUrl}}">{{newPostText}}</a>
+            <a href="{{pendingPostsUrl}}">{{pendingPostsText}}</a>
+            <a id="user-menu-info" href="/users/{{user.username}}"><img ng-src="{{user.img}}">{{user.username}}</a>
+            <a href="{{controlPanelUrl}}">{{controlPanelText}}</a>
+            <a href="{{signInUrl}}">{{signInText}}</a>
+        </div>
+    </div>
+</div>
+<div id="menu">
+    <div id="menu-container">
+        <div id="search-bar">
+            <div class="input-group">
+                <input type="text" class="form-control input-sm" placeholder="Search..." id="search-term">
+                <span class="input-group-btn">
+                    <button class="btn btn-secondary btn-xs" type="button" id="search-submit">Go</button>
+                </span>
+            </div>
+        </div>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li ng-repeat="category in categories"><a href="/category/{{category.name}}">{{category.name}}</a></li>
+        </ul>
+    </div>
+</div>
+
+<div id="alert-area">
+    <div class="alert alert-success alert-dismissable">
+        <a href="#" class="close" data-dismiss="alert" aria-label="close" onclick="$('.alert').css('display', 'none')">&times;</a>
+        <strong>Success: </strong> <span id="success-msg"></span>
+    </div>
+
+    <div class="alert alert-info alert-dismissable">
+        <a href="#" class="close" data-dismiss="alert" aria-label="close" onclick="$('.alert').css('display', 'none')">&times;</a>
+        <strong>Important: </strong> <span id="alert-msg"></span>
+    </div>
+
+    <div class="alert alert-warning alert-dismissable">
+        <a href="#" class="close" data-dismiss="alert" aria-label="close" onclick="$('.alert').css('display', 'none')">&times;</a>
+        <strong>Warning: </strong> <span id="warning-msg"></span>
+    </div>
+
+    <div class="alert alert-danger alert-dismissable">
+        <a href="#" class="close" data-dismiss="alert" aria-label="close" onclick="$('.alert').css('display', 'none')">&times;</a>
+        <strong>Error: </strong> <span id="danger-msg"></span>
+    </div>
+</div>

@@ -1,0 +1,24 @@
+<div id="content" ng-controller="userController">
+    <div style="float:right"><a href="{{editProfileUrl}}">{{editProfileText}}</a></div>
+    <div id="user">
+        <img id="user-picture" ng-src="{{user.img}}">
+        <h1 id="user-username">{{user.username}}</h1>
+        <span><h3>Name:</h3> <p>{{user.firstName}} {{user.secondName}}</p></span>
+        <span><h3>Email:</h3> <p>{{user.email}}</p></span>
+        <span><h3>Website:</h3> <p>{{user.website}}</p></span>
+        <span><h3>Bio:</h3> <p>{{user.bio}}</p></span>
+    </div>
+
+    <br>
+    <div id="posts-by-user" style="display:none">
+        <h2>Posts By {{user.username}}</h2>
+
+        <div ng-repeat="post in posts">
+            <h2><a href="/posts/{{post.permalink}}">{{post.title}}</a></h2>
+            <span>Posted {{post.postDate | date:'MMMM dd, yyyy'}} by <a href="/users/{{post.author.username}}">{{post.author.username}}</a></span>
+            <p><a href="/posts/{{post.permalink}}">Read -></a></p>
+            <hr>
+        </div>
+    </div>
+
+</div>

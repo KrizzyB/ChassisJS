@@ -1,0 +1,11 @@
+<div id="content" ng-controller="homeController">
+
+    <div ng-repeat="post in posts">
+        <h2><a href="/posts/{{post.permalink}}">{{post.title}}</a></h2>
+        <span><a href="/users/{{author.username}}">{{author.username}}</a></span>
+        <p>{{post.content}}</p>
+        <p><a href="/posts/{{post.permalink}}">Read More -></a></p>
+        <hr>
+    </div>
+
+</div>

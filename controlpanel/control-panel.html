@@ -1,0 +1,143 @@
+<div id="content" ng-controller="controlPanelController">
+
+    <ul class="nav nav-tabs">
+        <li class="active"><a data-toggle="tab" href="#cp-settings">Settings</a></li>
+        <li><a data-toggle="tab" href="#cp-posts">Posts</a></li>
+        <li><a data-toggle="tab" href="#cp-users">Users</a></li>
+        <li><a data-toggle="tab" href="#cp-post-settings">Post Settings</a></li>
+        <li><a data-toggle="tab" href="#cp-user-roles">User Roles</a></li>
+        <li><a data-toggle="tab" id="cp-category-tab" href="#cp-categories">Categories</a></li>
+        <li><a data-toggle="tab" href="#cp-advanced">Advanced</a></li>
+    </ul>
+
+    <div class="tab-content">
+        <div id="cp-settings" class="tab-pane fade in active">
+            <h3>Settings</h3>
+            <div class="form-group">
+                <label for="cp-website-name">Website Name:</label>
+                <input type="text" class="form-control" id="cp-website-name" aria-describedby="websiteNameHelp" ng-value="config.siteName">
+                <small id="websiteNameHelp" class="form-text text-muted">The name of your website will appear in the title bar of the web browser.</small>
+            </div>
+        </div>
+        <div id="cp-posts" class="tab-pane fade in">
+            <h3>Posts</h3>
+            <div ng-repeat="post in posts">
+                <h2><a href="/posts/{{post.permalink}}">{{post.title}}</a></h2>
+                <span>Posted {{post.postDate | date:'MMMM dd, yyyy'}} by <a href="/users/{{post.author.username}}">{{post.author.username}} - Status: {{post.status}}</a></span>
+                <hr>
+            </div>
+        </div>
+        <div id="cp-users" class="tab-pane fade in">
+            <h3>Users</h3>
+            <div ng-repeat="user in users">
+                <div class="cp-user-list">
+                    <a href="/users/{{user.username}}">
+                        <img id="user-picture" ng-src="{{user.img}}" class="cp-img-list">
+                        <h3>{{user.username}}</h3>
+                    </a>
+                    <span>Role: {{user.role}}</span>
+                    <hr>
+                </div>
+            </div>
+        </div>
+        <div id="cp-post-settings" class="tab-pane fade in">
+            <h3>Post Settings</h3>
+            <p>ChassisJS allows you to add custom data to your posts. Any entries made below will appear on on the new post page allowing you to store custom data with your posts.</p>
+            <div class="form-group col-sm-6">
+                <label for="cp-post-custom-name">Custom Data Database Name:</label>
+                <input type="text" class="form-control" id="cp-post-custom-name" aria-describedby="nameHelp">
+                <small id="nameHelp" class="form-text text-muted">Enter the name of your custom data for the database. It cannot contain any spaces.</small>
+            </div>
+
+            <div class="form-group col-sm-6">
+                <label for="cp-post-custom--friendly-name">Custom Data Friendly Name:</label>
+                <input type="text" class="form-control" id="cp-post-custom--friendly-name" aria-describedby="friendlyNameHelp">
+                <small id="friendlyNameHelp" class="form-text text-muted">Enter the name of your custom data to appear on the new post page</small>
+            </div>
+        </div>
+        <div id="cp-user-roles" class="tab-pane fade in">
+            <h3>User Roles</h3>
+            <div class="list-group">
+                <div ng-repeat="role in roles">
+                    <a href="#" class="list-group-item">{{role.role}}</a>
+                </div>
+            </div>
+        </div>
+        <div id="cp-categories" class="tab-pane fade">
+            <h3>Categories</h3>
+            <div class="list-group">
+                <div ng-repeat="category in categories">
+                    <a href="#" class="list-group-item" ng-click="deleteCategory('{{category.name}}')">{{category.name}}</a>
+                </div>
+            </div>
+            <div class="form-group">
+                <a data-toggle="tab" href="#cp-new-category" class="btn btn-primary">New Category</a>
+            </div>
+        </div>
+        <div id="cp-new-category" class="tab-pane fade">
+            <h3>New Category</h3>
+            <div class="list-group">
+                <div class="form-group">
+                    <label for="cp-new-category-name">Category Name:</label>
+                    <input type="text" class="form-control" id="cp-new-category-name">
+                </div>
+
+                <div class="form-group">
+                    <button type="button" class="btn btn-primary" id="cp-new-category-save">Save</button>
+                </div>
+            </div>
+        </div>
+        <div id="cp-advanced" class="tab-pane fade">
+            <h3>Advanced</h3>
+
+            <div class="form-group">
+                <label for="cp-database-location">Database Location:</label>
+                <input type="text" class="form-control" id="cp-database-location" aria-describedby="dbLocationHelp" ng-value="settings.mongodb.host">
+                <small id="dbLocationHelp" class="form-text text-muted">The address of the database</small>
+            </div>
+
+            <div class="form-group">
+                <label for="cp-database-port">Database Port:</label>
+                <input type="text" class="form-control" id="cp-database-port" aria-describedby="dbPortHelp" ng-value="settings.mongodb.port">
+                <small id="dbPortHelp" class="form-text text-muted">The port number of your MongoDB database.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="cp-database-collection">Database Collection:</label>
+                <input type="text" class="form-control" id="cp-database-collection" aria-describedby="dbCollectionHelp" ng-value="settings.mongodb.dbName">
+                <small id="dbCollectionHelp" class="form-text text-muted">The collection name for your ChassisJS data.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="cp-database-username">Database Username:</label>
+                <input type="text" class="form-control" id="cp-database-username" aria-describedby="dbUsernameHelp" ng-value="settings.mongodb.username">
+                <small id="dbUsernameHelp" class="form-text text-muted">The username for the collection.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="cp-database-password">Database Password:</label>
+                <input type="text" class="form-control" id="cp-database-password" aria-describedby="dbPasswordHelp" ng-value="settings.mongodb.password">
+                <small id="dbPasswordHelp" class="form-text text-muted">The password for the collection.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="cp-website-port">ChassisJS Port Number:</label>
+                <input type="text" class="form-control" id="cp-website-port" aria-describedby="websitePortHelp" ng-value="settings.listen">
+                <small id="websitePortHelp" class="form-text text-muted">The port number you wish ChassisJS to run on.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="cp-facebook-appid">Facebook App ID:</label>
+                <input type="text" class="form-control" id="cp-facebook-appid" aria-describedby="facebookAppIDHelp" ng-value="settings.facebook.appId">
+                <small id="facebookAppIDHelp" class="form-text text-muted">Unique ID for the connected Facebook App.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="cp-facebook-app-secret">Facebook App Secret:</label>
+                <input type="text" class="form-control" id="cp-facebook-app-secret" aria-describedby="facebookSecretHelp" ng-value="settings.facebook.secret">
+                <small id="facebookSecretHelp" class="form-text text-muted">Secret Key for the connected Facebook App.</small>
+            </div>
+        </div>
+    </div>
+
+</div>

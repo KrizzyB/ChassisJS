@@ -1,0 +1,57 @@
+<div id="content">
+
+	<script>
+        var cookie = document.cookie;
+        if (cookie.indexOf("tempSession") >=0) {
+            //session cookie exists
+            var index = cookie.indexOf("tempSession");
+            cookie = cookie.slice(index+12);
+            $.ajax({
+                type: "GET",
+                url: "/auth/session/" + cookie,
+                contentType: "application/json",
+                dataType: 'json',
+                timeout: 5000,
+                success: function (response) {
+                    console.log(response);
+                    $("#welcome").html("Welcome " + response.data.firstName + " " + response.data.secondName);
+                    $("#img").attr("src", response.data.img);
+                },
+                error: function (response) {
+                    throwError(response);
+                }
+            });
+        } else {
+            //no session cookie exists
+            $("#user-menu-info").html("Sign In").attr("href", "/login");
+        }
+
+        function saveUsername() {
+            var username = {username: $("#username").val()};
+
+            $.ajax({
+                type: "PUT",
+                url: "/data/username/",
+                contentType: "application/json",
+                dataType: 'json',
+                data: JSON.stringify(username),
+                timeout: 5000,
+                success: function (response) {
+                    if (response.status = "ok") {
+                        window.location.replace(window.location.protocol + "//" + window.location.hostname + "/auth/facebook");
+                    }
+                },
+                error: function (response) {
+                    throwError(response);
+                }
+            });
+        }
+	</script>
+
+    <img id="img" src="">
+    <h2 id="welcome"></h2>
+		<p>Please enter a unique username to use on this site:</p>
+		<label for="username">Username: </label><input type="text" name="username" id="username"> <br>
+		<button type="button" onclick="saveUsername()">Done</button>
+
+</div>

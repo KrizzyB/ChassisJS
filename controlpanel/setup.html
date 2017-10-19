@@ -253,8 +253,8 @@
 
                     $.ajax({
                         type: "GET",
-                        url: "http://graph.facebook.com/" + appID,
-                        contentType: "application/json",
+                        url: "https://graph.facebook.com/" + appID,
+                        contentType: "text/plain",
                         dataType: 'json',
                         timeout: 5000,
                         success: function (response) {

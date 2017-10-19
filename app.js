@@ -58,9 +58,16 @@ function serverInit() {
  * Setup Mode
  */
 function startSetup() {
-    chassis = app.listen("25569");
+    var listen;
+    //override port if included in command line
+    if (Number(process.argv[2])) {
+        listen = process.argv[2];
+    } else {    //use default port 80
+        listen = "80";
+    }
+    chassis = app.listen(listen);
     console.log();
-    console.log("Setup Mode - Server listening on port 80...");
+    console.log("Setup Mode - Server listening on port " + listen + "...");
     console.log();
     setup = true;
 }
@@ -213,6 +220,7 @@ function createRoles() {
         }
 
         //restart server
+        listen = process.argv[2] = null;    //clear manually specified port, instead go with the one input during setup
         console.log();
         console.log("Restarting server...");
         console.log();
@@ -1294,8 +1302,15 @@ function throwError(error, msg, request, response) {
  */
 
 function startServer(config) {
-    chassis = app.listen(config.listen);    //start listening for requests
-    console.log("Listening on port " +  config.listen);
+    var listen;
+    //override port if included in command line
+    if (Number(process.argv[2])) {
+        listen = process.argv[2];
+    } else {    //use default port in config
+        listen = config.listen;
+    }
+    chassis = app.listen(listen);    //start listening for requests
+    console.log("Listening on port " + listen);
 }
 
 //fetch settings from config file

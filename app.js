@@ -15,23 +15,24 @@ console.log();
 console.log();
 
 //setup modules
-var express = require("express");
-var app = express();
-var fs = require("fs");
-var bodyParser = require("body-parser");
-var mongoose = require("mongoose");
-var db;
-var cookieParser = require('cookie-parser');
-var passport = require("passport");
-var FacebookStrategy = require("passport-facebook").Strategy;
+const express = require("express");
+const app = express();
+const fs = require("fs");
+const bodyParser = require("body-parser");
+const mongoose = require("mongoose");
+const cookieParser = require('cookie-parser');
+const passport = require("passport");
+const FacebookStrategy = require("passport-facebook").Strategy;
+const log = require("winston");
+var listen, db, chassis, session;
 var setup = false;  //set app to standard running mode by default
-var chassis;
-var session;
 
 app.use(express.static('public'));  //enable access to static directory "public" from site
 app.use(bodyParser.json());
 app.use(passport.initialize());
 app.use(cookieParser());
+log.add(log.transports.File, { filename: 'chassis.log' });
+log.exitOnError = false;
 
 //setup DB models
 var Session = require("./models/sessions");
@@ -43,10 +44,13 @@ var Post = require("./models/posts");
 
 //read config file
 function serverInit() {
+    log.info("Reading config file...");
     fs.readFile('./config.json', function read(error, data) { //attempt to read the config file
         if (error) {
+            log.info("Unable to read config file, starting Chassis in setup mode...");
             startSetup();    //start setup mode if no config file is found
         } else {
+            log.info("Config file loaded, starting Chassis...");
             var config = JSON.parse(data);  //grab config data
             connectDB(config);  //connect to DB
             connectFacebook(config);
@@ -58,55 +62,60 @@ function serverInit() {
  * Setup Mode
  */
 function startSetup() {
-    var listen;
     //override port if included in command line
     if (Number(process.argv[2])) {
         listen = process.argv[2];
     } else {    //use default port 80
         listen = "80";
     }
-    chassis = app.listen(listen);
-    console.log();
-    console.log("Setup Mode - Server listening on port " + listen + "...");
-    console.log();
-    setup = true;
+    setup = true;   //enable setup mode
+    log.info("Setup mode enabled.");
+    chassis = app.listen(listen);   //start server
+    log.info("Server listening on port " + listen + "...");
 }
 
 //create config
 app.post("/setup/db-test", function(request, response){
-    var success = true;
     if (setup) {
+        log.info("Attempting to connect to database using credentials provided...");
         try {
             //try settings entered by user
             var options = {user: request.body.mongodb.username, pass: request.body.mongodb.password, auth: {authdb: request.body.mongodb.dbName}};
-
             mongoose.connect(request.body.mongodb.host + ":" + request.body.mongodb.port + "/" + request.body.mongodb.dbName, options, function(error) {
                 //settings have not worked
                 if (error) {
                     db = mongoose.connection;
                     response.json('{"message": "Cannot connect to database, check your details.","status": "error"}');
                     db.close();
+                    log.error("Failed to connect to database. Connection closed.");
                 //settings are correct
                 } else {
+                    log.info("Successfully connected to database.");
                     //attempt to write to database
                     db = mongoose.connection;
                     var post = {title: "Test Post", author: "ChassisJS", content: "This post is a test, it should have been automatically deleted, check your database account has the correct permissions and restart the setup by deleting the config file", status: "published", permalink: "test", postDate: "2012-04-23T18:25:43.511Z", category: "test"};
+                    log.info("Attempting to write data to database...");
                     Post.newPost(post, function(error, document) {
                         //error when attempting to post
                         if (error) {
                             response.json('{"message": "Error writing to the database, check the permissions of the user account.","status": "error"}');
                             console.log(error);
                             db.close();
+                            log.error("Failed to write to database. Connection closed.");
                         } else {
+                            log.info("Successfully written to database.");
                             //post creation successful, attempt to delete
+                            log.info("Attempting to delete data from database...");
                             Post.deletePost(document._id, function(error) {
                                 if (error) {
                                     response.json('{"message": "Error deleting from the database, check the permissions of the user account.","status": "error"}');
                                     db.close();
+                                    log.error("Failed to delete from database. Connection closed.");
                                 } else {
                                     //post deleted successfully
                                     response.json('{"message": "Database connected successfully!","status": "success"}');
                                     db.close();
+                                    log.info("Successfully deleted from database.");
                                 }
                             });
 
@@ -114,62 +123,77 @@ app.post("/setup/db-test", function(request, response){
                     });
                 }
             });
+            log.info("Database test complete.");
         } catch(error) {
             response.json('{"message": "' + error.message + '","status": "error"}');
-            success = false;
+            log.error("Failed to connect database.");
         }
     }
 });
 
 app.post("/setup/save-config", function(request, response){
     if (setup) {
+        log.info("Attempting to save config...");
         var newConfig = request.body;
-        fs.writeFile("config-temp.json", JSON.stringify(newConfig), function () {   //make config temporary in the event that setup ends prematurely and requires to be run again
-            //check that config has been created
-            fs.readFile('./config-temp.json', function read(error, data) { //attempt to read the config file
-                if (error) {
-                    response.json('{"message": "Chassis was unable to write the config data to disk.", "status": "error"}');
-                } else {
-                    console.log("New config saved!");
-                    response.json('{"status": "success"}');
-                    //connect to db
-                    var config = JSON.parse(data);  //grab config data
-                    connectDB(config);  //connect to DB
-                }
-            });
+        fs.writeFile("config-temp.json", JSON.stringify(newConfig), function (error) {   //make config temporary in the event that setup ends prematurely and requires to be run again
+            if (error) {
+                //error
+            } else {
+                log.info("Config written.");
+                //check that config has been created
+                log.info("Verifying...");
+                fs.readFile('./config-temp.json', function read(error, data) { //attempt to read the config file
+                    if (error) {
+                        response.json('{"message": "Chassis was unable to write the config data to disk.", "status": "error"}');
+                        //error
+                    } else {
+                        log.info("Config successfully written to disk.");
+                        response.json('{"status": "success"}');
+                        //connect to db
+                        var config = JSON.parse(data);  //grab config data
+                        connectDB(config);  //connect to DB
+                    }
+                });
+            }
         })
     }
 });
 
 app.post("/setup/create-admin", function(request, response){
     if (setup) {
-
+        log.info("Attempting to create administrator account...");
         //check for existing Administrator
         User.getUserByUsername("Administrator", function(error, user) {
             if (user){  //admin already exists
+                log.warn("Administrator account already exists.");
                 User.deleteUser(user._id, function(error) {
                     if (error) {    //error
                         response.json({"data": "An Administrator account already exists and cannot be deleted.", "status":"error"});
+                        //error
                     } else {    //create new admin
-                        var user = request.body;
-                        User.newUser(user, function(error) {
+                        log.info("Administrator account deleted.");
+                        User.newUser(request.body, function(error) {
                             if (error) {
                                 response.json({"data": "Cannot create new user, please check your database permissions.", "status":"error"});
+                                //error
                             } else {
                                 response.json({"status": "success"});
+                                log.info("New administrator account created.");
                             }
                         })
                     }
                 })
             } else if (error) { //error looking for Admin account
                 response.json({"data": "An error occurred attempting to read the user database.", "status":"error"});
+                //error
             } else {    //admin account does not exist
-                var user = request.body;
-                User.newUser(user, function(error) {
+                User.newUser(request.body, function(error) {
                     if (error) {
                         response.json({"data": "Cannot create new user, please check your database permissions.", "status":"error"});
+                        //error
                     } else {
                         response.json({"status": "success"});
+                        log.info("Administrator account created.");
                     }
                 })
             }
@@ -179,22 +203,22 @@ app.post("/setup/create-admin", function(request, response){
 
 app.post("/setup/sitename", function(request, response){
     if (setup) {
-
+        log.info("Attempting to save site config...");
         //check for existing config
         Config.deleteConfig("siteName", function(error) {
             if (error) {
                 response.json({"data": "An error occurred trying to overwrite the site name property.", "status":"error"});
+                //error
             } else {
                 var config = request.body;
                 Config.newConfig(config, function(error) {
                     if (error) {
                         response.json({"data": "An error occurred trying to overwrite the site name property.", "status":"error"});
+                        //error
                     } else {
                         response.json({"status": "success"});
-                        fs.rename("./config-temp.json", "./config.json", function() {
-                            createRoles();
-                        });
-
+                        log.info("Site config saved.");
+                        dbInit();
                     }
                 })
             }
@@ -203,9 +227,10 @@ app.post("/setup/sitename", function(request, response){
     }
 });
 
-function createRoles() {
+// create required default data in database
+function dbInit() {
+    log.info("Attempting to initialise the database...");
     if (setup) {
-
         //create default roles
         var administrator = {role: "Administrator", permissions: ["admin-cp", "view-all-users", "update-any-user-profile", "publish-post", "view-pending-posts", "create-new-post", "delete-post", "edit-post", "edit-categories", "user"]};
         var editor = {role: "Editor", permissions: ["publish-post", "view-pending-posts", "create-new-post", "delete-post", "edit-categories", "edit-post", "user"]};
@@ -213,21 +238,73 @@ function createRoles() {
         var user = {role: "User", permissions: ["user"]};
         var role = [administrator, editor, writer, user];
 
-        for (var i=0; i<3; i++) {
-            Role.newRole(role[i], function(error) {
-                //handle errors?
+        for (var i=0; i < role.length; i++) {
+            Role.newRole(role[i], function(error, role) {
+                if (error) {
+                    log.warn("Could not create role in database, it may already exist.");
+                } else {
+                    log.info("Created " + role.role + " role in database.");
+                }
             })
         }
 
-        //restart server
-        listen = process.argv[2] = null;    //clear manually specified port, instead go with the one input during setup
-        console.log();
-        console.log("Restarting server...");
-        console.log();
-        db.close();
-        chassis.close();    //stop listening
-        setup = false;  //reset app to normal mode
-        serverInit();   //start again
+        //create sample post
+        log.info("Attempting to create the sample post...");
+        Post.getPostByPermalink("my-first-post", function (error, post) {   //check if "my-first-post" already exists
+            if (error) {
+                console.log(error);
+                //error
+            } else {
+                if (!post) {
+                    User.getUserByUsername("Administrator", function(error, user) {   //get id of admin to include as post author
+                        console.log(user);
+                        if (error) {
+                            //error
+                        } else {
+                            var post = {title: "My First Post", author: user._id, content: "This post is a test, it should have been automatically deleted, check your database account has the correct permissions and restart the setup by deleting the config file", status: "published", permalink: "my-first-post", postDate: "2012-04-23T18:25:43.511Z", category: "test"};
+                            Post.newPost(post, function(error) {
+                                //error when attempting to post
+                                if (error) {
+                                    console.log(error);
+                                    db.close();
+                                } else {
+                                    log.info("Sample post created.");
+                                    fs.rename("./config-temp.json", "./config.json", function(error) {
+                                        if (error) {
+                                            //error
+                                        } else {
+                                            //restart server
+                                            listen = process.argv[2] = null;    //clear manually specified port, instead go with the one input during setup
+                                            log.info("Setup complete, restarting the server.");
+                                            db.close();
+                                            chassis.close();    //stop listening
+                                            setup = false;  //reset app to normal mode
+                                            serverInit();   //start again
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                } else {
+                    log.warn("The sample post already exists, skipping creation.");
+                    fs.rename("./config-temp.json", "./config.json", function(error) {
+                        if (error) {
+                            //error
+                        } else {
+                            //restart server
+                            listen = process.argv[2] = null;    //clear manually specified port, instead go with the one input during setup
+                            log.info("Setup complete, restarting the server.");
+                            db.close();
+                            chassis.close();    //stop listening
+                            setup = false;  //reset app to normal mode
+                            serverInit();   //start again
+                        }
+                    });
+                }
+            }
+        });
+
     }
 
 }
@@ -237,14 +314,14 @@ function createRoles() {
  */
 
 function connectDB(config) {
-    console.log("Connecting to database " + config.mongodb.host + ":" + config.mongodb.port + "/" + config.mongodb.dbName + " as user: " + config.mongodb.username);
+    log.info("Connecting to database " + config.mongodb.host + ":" + config.mongodb.port + "/" + config.mongodb.dbName + " as user: " + config.mongodb.username);
     try {
         var options = {user: config.mongodb.username, pass: config.mongodb.password, auth: {authdb: config.mongodb.dbName}, server: {socketOptions: {socketTimeoutMS: 0, connectionTimeout: 0}}};
         mongoose.Promise = global.Promise;
         mongoose.connect(config.mongodb.host + ":" + config.mongodb.port + "/" + config.mongodb.dbName, options);
     }
     catch(error) {
-        console.log(error.message);
+        log.error("An error occurred when attempting to connect to the database.", {error: error});
         process.exit();
     }
     db = mongoose.connection;
@@ -275,7 +352,6 @@ function connectFacebook(config) {
                 response.status(500).send(error);
             } else {
                 if (user) {
-                    console.log("User Found");
                     return done(null, user);
                 } else {
                     var newUser = {"email": profile.emails[0].value, "firstName": profile.name.givenName, "secondName": profile.name.familyName, "img": profile.photos[0].value, "facebookID": profile.id};
@@ -284,7 +360,6 @@ function connectFacebook(config) {
                         if (error) {
                             return done(error);
                         } else {
-                            console.log("User Created");
                             return done(null, user);
                         }
                     })
@@ -296,10 +371,9 @@ function connectFacebook(config) {
 }
 
 //login callback url
-app.get("/auth/facebook/callback", passport.authenticate('facebook', {failureRedirect: '/login'}),
-    function (request, response) {
-        createSession(request.user, response);
-    });
+app.get("/auth/facebook/callback", passport.authenticate('facebook', {failureRedirect: '/login'}), function (request, response) {
+    createSession(request.user, response);
+});
 
 passport.serializeUser(function(user, done) {
     done(null, user);
@@ -361,7 +435,7 @@ function checkPermission(permission, cookie, callback) {
             callback(true, false);
         } else {
             var result = false;
-            if (user != null) {  //if a session is currently active check the user's permissions
+            if (user) {  //if a session is currently active check the user's permissions
                 Role.getRole(user.userID.role, function (error, role) {
                     var permitted;
                     if (error) {
@@ -369,7 +443,7 @@ function checkPermission(permission, cookie, callback) {
                     } else {
                         permitted = role.permissions;
                         for (var i = 0; i < permitted.length; i++) {
-                            if (permission == permitted[i]) {
+                            if (permission === permitted[i]) {
                                 result = true;
                             }
                         }
@@ -418,7 +492,7 @@ app.get("/auth/session/:sessionID", function(request, response){
 app.get("/data/settings", function(request, response){
     checkPermission("admin-cp", request.cookies.session, function(error, permitted) {
         if (error) {
-            throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+            handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
             if (permitted) {
                 fs.readFile('./config.json', function read(error, data) {
@@ -583,7 +657,7 @@ app.delete("/data/role/:role", function(request, response){
 app.get("/data/users", function(request, response){
     checkPermission("view-all-users", request.cookies.session, function(error, permission) {
         if (error) {
-            throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+            handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
             if (permission) {
                 User.getUser(function(error, user) {
@@ -632,7 +706,7 @@ app.put("/data/update/user/:id", function(request, response){
         if (error) {
             response.json({"data": error, "status":"error"});
         } else {
-            if (session.userID._id == requestUser) {
+            if (session.userID._id === requestUser) {
                 User.updateUserProfile(request.params.id, profile, function(error, user) {
                     if (error) {
                         response.json({"data": error, "status":"error"});
@@ -643,7 +717,7 @@ app.put("/data/update/user/:id", function(request, response){
             } else {
                 checkPermission("update-any-user-profile", request.cookies.session, function(error, permitted) {
                     if (error) {
-                        throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+                        handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                     } else {
                         if (permitted) {
                             User.getUser(function (error, user) {
@@ -730,12 +804,12 @@ app.get("/data/posts/:permalink", function(request, response){
             response.json({"data": error, "status":"error"});
         } else {
             if (post) { //if a post is found
-                if (post.status == "unpublished") {
+                if (post.status === "unpublished") {
 
                     //check the user has the permission to view unpublished posts
                     checkPermission("view-pending-posts", request.cookies.session, function(error, permission) {
                         if (error) {
-                            throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+                            handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                         } else {
                             if (permission) {
                                 response.json({"data": post, "status":"success"});
@@ -744,7 +818,7 @@ app.get("/data/posts/:permalink", function(request, response){
                                     if (error) {
                                         response.json({"data": error, "status":"error"});
                                     } else {
-                                        if (JSON.stringify(post.author._id) == JSON.stringify(session.userID._id)) {
+                                        if (JSON.stringify(post.author._id) === JSON.stringify(session.userID._id)) {
                                             response.json({"data": post, "status":"success"});
                                         } else {
                                             response.json({"data": null, "status":"success"});
@@ -801,7 +875,7 @@ app.get("/data/postsby/:username", function(request, response){
 app.post("/data/posts", function(request, response){
     checkPermission("create-new-post", request.cookies.session, function(error, permission) {
         if (error) {
-            throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+            handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
             if (permission) {
                 var post = request.body;
@@ -845,10 +919,9 @@ app.put("/data/posts/:id", function(request, response){
 app.delete("/data/posts/:permalink", function(request, response){
     checkPermission("delete-post", request.cookies.session, function(error, permission) {
         if (error) {
-            throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+            handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
             if (permission) {
-                var post = request.body;
                 //delete the post
                 Post.deletePost(request.params._id, function(error, post) {
                     if (error) {
@@ -882,9 +955,6 @@ app.get("/data/search/:query", function(request, response){
 });
 
 //search for posts by category
-function escapeRegex(text) {
-    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
-}
 
 app.get("/data/category/:query", function(request, response){
     var regex = new RegExp(escapeRegex(request.params.query), 'gi');
@@ -902,7 +972,7 @@ app.post("/data/img", function(request, response){
 
     checkPermission("create-new-post", request.cookies.session, function(error, permission) {
         if (error) {
-            throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+            handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
             if (permission) {
 
@@ -1006,10 +1076,10 @@ app.get("/publish/:param", function(request, response) {
     if (setup) {
         response.sendFile(__dirname + '/controlpanel/setup.html');
     } else {
-        if (request.params.param == "new") {
+        if (request.params.param === "new") {
             checkPermission("create-new-post", request.cookies.session, function(error, permission) {
                 if (error) {
-                    throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+                    handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                 } else {
                     if (permission) {
                         buildPage("new-post", response);
@@ -1021,7 +1091,7 @@ app.get("/publish/:param", function(request, response) {
         } else {
             checkPermission("publish-post", request.cookies.session, function(error, permission) {
                 if (error) {
-                    throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+                    handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                 } else {
                     if (permission) {
                         Post.publishPost(request.params.param, function(error) {
@@ -1052,7 +1122,7 @@ app.get("/delete/:param", function(request, response) {
     } else {
         checkPermission("delete-post", request.cookies.session, function(error, permission) {
             if (error) {
-                throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+                handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
             } else {
                 if (permission) {
                     Post.deletePost(request.params.param, function(error) {
@@ -1079,10 +1149,10 @@ app.get("/edit/:content", function(request, response) {
     if (setup) {
         response.sendFile(__dirname + '/controlpanel/setup.html');
     } else {
-        if (request.params.content == "profile") {
+        if (request.params.content === "profile") {
             checkPermission("user", request.cookies.session, function(error, permission) {
                 if (error) {
-                    throwError(error, "An error occurred attempting to determine the user's permissions.", request, response);
+                    handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                 } else {
                     if (permission) {
                         buildPage("edit-profile", response);
@@ -1195,7 +1265,7 @@ function buildPage(request, response) {
     //get header template
     fs.readFile('./templates/header.html', function read(error, data) {
         if (error) {
-            throwError(error, "Template file '" + error.path + "' missing.", request, response);
+            handleError(error, "Template file '" + error.path + "' missing.", request, response);
         } else {
             page += data;
             getBody(request);
@@ -1256,7 +1326,7 @@ function buildPage(request, response) {
 
         fs.readFile('./templates/' + file, function read(error, data) {
             if (error) {
-                throwError(error, "Template file '" + error.path + "' missing.", request, response);
+                handleError(error, "Template file '" + error.path + "' missing.", request, response);
             } else {
                 page += data;
                 getFooter();
@@ -1268,10 +1338,10 @@ function buildPage(request, response) {
     function getFooter() {
         fs.readFile('./templates/footer.html', function read(error, data) {
             if (error) {
-                throwError(error, "Template file '" + error.path + "' missing.", request, response);
+                handleError(error, "Template file '" + error.path + "' missing.", request, response);
             } else {
                 page += data;
-                if (request == "404") {
+                if (request === "404") {
                     response.status(404).send(page);
                 } else {
                     response.send(page);
@@ -1285,8 +1355,8 @@ function buildPage(request, response) {
  * Handle Errors
  */
 
-function throwError(error, msg, request, response) {
-    if(request && request.xhr) {
+function handleError(level, type, error, msg, request, response) {
+    /*if(request && request.xhr) {
         switch(error) {
             default:
                 response.json({"data": {"message": msg, "error": error}, "status":"error"});
@@ -1295,6 +1365,21 @@ function throwError(error, msg, request, response) {
         response.status(500).send("ERROR: " + error);
     }
     console.log("ERROR: " + error);
+    */
+
+    switch (type) {
+        case "db":
+            log.error("A " + level + " database error occurred: " + msg, {error: error});
+
+            break;
+
+        case "http":
+            log.error("A " + level + " http error occurred: " + msg, {error: error});
+    }
+
+    if(request && request.xhr) {
+        response.json({"data": {"message": msg, "error": error}, "status":"error"});
+    }
 }
 
 /**---------------------------------------------------------------------------------------------------------------------

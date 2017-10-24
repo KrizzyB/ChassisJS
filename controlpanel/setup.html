@@ -59,8 +59,12 @@
             width: 300px;
         }
 
-        #complete-img {
-            width: 500px;
+        .status-section {
+            padding: 10px;
+        }
+
+        .status-section img {
+            margin: 0 10px 0 0;
         }
 
         .bs-wizard {margin-top: 0;}
@@ -88,12 +92,11 @@
     </style>
 
     <script>
-        var config = new Object();  //store config data to send to server
-        var siteName = "";
-        var user = new Object();    //store admin user to send to database
+        var config = {};  //store input data
 
         $(document).ready(function () {
 
+            //on-screen message display
             function displayMsg(type, message) {
                 var classes = ["alert-success", "alert-info", "alert-warning", "alert-danger"];
                 for (var i=0; i < classes.length; i++) {
@@ -102,23 +105,169 @@
                 $("#error-msg").addClass("alert-" + type).html(message).show();
             }
 
-            //auto fill db inputs
+            //page 1
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+            //auto fill db inputs
             $("#db-host").focus(function() {
                 if ($(this).val() === "") {
                     $(this).val("mongodb://");
                 }
             });
-
             $("#db-port").focus(function() {
                 if ($(this).val() === "") {
                     $(this).val("27017");
                 }
             });
 
-            function testDatabase(submit) {
-                //validate inputs
-                var input = $(".db");
+            //button handlers
+            $("#test-db").on("click", function () {
+                testDatabase(false);
+            });
+            $("#submit-db").on("click", function() {
+                testDatabase(true);
+            });
+
+            //page 2
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            $("#submit-web").on("click", function() {
+                validateInputs(".web", function() {
+                    //save inputs
+                    config.siteName = $("#web-name").val();
+                    config.listen = $("#web-port").val();
+                    //change page
+                    $("#page-2").fadeOut(function() {
+                        $("#page-3").fadeIn();
+                    });
+                    $("#step-web").removeClass("active").addClass("complete");
+                    $("#step-fb").removeClass("disabled").addClass("active");
+                })
+            });
+
+            //page 3
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            $("#test-fb").on("click", function () {
+                testFacebook();
+            });
+
+            $("#next-fb").on("click", function() {
+                $(".loading").fadeIn();
+                FB.login(function(response){
+                    if (response.status === 'connected') {
+                        FB.api('/me?fields=id,first_name,last_name,email,picture.width(500).height(500)', function(profile) {
+                            $(".loading").fadeIn();
+                            config.user = {username: "Administrator", role: "Administrator", img: profile.picture.data.url, firstName: profile.first_name, secondName: profile.last_name, email: profile.email, facebookID: profile.id};
+
+                            //store details to config
+                            config.facebookAppID = $("#fb-appid").val();
+                            config.facebookSecret = $("#fb-secret").val();
+
+                            //change profile info
+                            $("#facebook-img").attr("src", config.user.img);
+                            $("#facebook-username").html(config.user.firstName + " " + config.user.secondName);
+                            $("#facebook-email").html(config.user.email);
+
+
+                            $(".loading").fadeOut();
+                            //change page
+                            $("#page-3").fadeOut(function() {
+                                $("#page-4").fadeIn();
+                            });
+                        });
+                    } else {
+                        $(".loading").fadeOut();
+                        displayMsg("danger", "Unable to connect to Facebook app, please check your details.");
+                    }
+                }, {scope: 'public_profile,email'});
+            });
+
+            //page 4
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            $("#confirm-install").on("click", function() {
+                //change page
+                $("#page-4").fadeOut(function() {
+                    $("#page-5").fadeIn();
+                });
+                $("#step-fb").removeClass("active").addClass("complete");
+                $("#step-install").removeClass("disabled").addClass("active");
+                saveConfig(config);
+            });
+
+            //page 5
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            function progressListener() {
+                $.ajax({
+                    type: "GET",
+                    url: "setup/status",
+                    contentType: "application/json",
+                    timeout: 5000,
+                    success: function (status) {
+                        var properties = Object.keys(status[0]);
+                        var error = false;
+
+                        for (var i=0; i<properties.length; i++) {
+                            if (status[0][properties[i]].status === "error") {
+                                //error
+                                $("#setup-" + properties[i]).attr("src", "img/setup-error.png");
+                                error = true;
+                            } else {
+                                $("#setup-" + properties[i]).attr("src", "img/setup-success.png");
+                            }
+                        }
+
+                        if (properties.length < 12) {
+                            progressListener();
+                        } else if (!error) {
+                            $("#launch").removeClass("btn-warning disabled").addClass("btn-success");    //activate submit button
+                        }
+
+                    },
+                    error: function (error) {
+                        //error
+                    }
+                });
+            }
+
+            $("#launch").on("click", function() {
+                $(".loading").fadeIn();
+                //resart server
+                $.ajax({
+                    type: "GET",
+                    url: "setup/complete",
+                    contentType: "application/json",
+                    dataType: 'json',
+                    data: JSON.stringify(config),
+                    timeout: 5000,
+                    success: function (response) {
+                        if(response.status === "success") {
+                            setTimeout(function() {
+                                if (response.port === "80") {
+                                    window.location.replace(window.location.protocol + "//" + window.location.hostname);
+                                } else {
+                                    window.location.replace(window.location.protocol + "//" + window.location.hostname + ":" + response.port.data);
+                                }
+                            }, 10000);
+                        }
+                    },
+                    error: function () {
+
+                    }
+                });
+            });
+
+            /*
+            ------------------------------------------------------------------------------------------------------------------------
+            Validate Inputs
+            ------------------------------------------------------------------------------------------------------------------------
+            */
+
+            function validateInputs(inputClass, callback) {
+                var input = $(inputClass);
+
                 var valid = true;
 
                 //clear any current errors
@@ -130,15 +279,27 @@
 
                 //check for empties
                 for (var i=0; i<input.length; i++) {
-                    if ($(input[i]).children(".input-group").children("input").val() == "") {
+                    if ($(input[i]).children(".input-group").children("input").val() === "") {
                         $(input[i]).children(".input-group").addClass("has-danger");
                         valid = false;
                     }
                 }
 
-                //try database connection
-                if (valid) {
+                if(valid) {
+                    callback();
+                }
+            }
 
+            /*
+            ------------------------------------------------------------------------------------------------------------------------
+            AJAX Requests
+            ------------------------------------------------------------------------------------------------------------------------
+            */
+
+            //database
+            function testDatabase(submit) {
+                validateInputs(".db", function() {
+                    //try database connection
                     $(".loading").fadeIn();
 
                     config.mongodb = {dbName: $("#db-name").val(), host: $("#db-host").val(), port: $("#db-port").val(), username: $("#db-username").val(), password: $("#db-password").val()};
@@ -152,7 +313,7 @@
                         timeout: 5000,
                         success: function (response) {
                             var data = JSON.parse(response);
-                            if (data.status == "success") {
+                            if (data.status === "success") {
                                 $(".loading").fadeOut();
                                 if (submit) {   //when pressing next
                                     $("#page-1").fadeOut(function() {
@@ -174,77 +335,14 @@
                             displayMsg("danger", "Cannot connect to database, check your details.");
                         }
                     });
-                }
+                });
             }
 
-            $("#test-db").on("click", function () {
-                testDatabase(false);
-            });
+            //facebook
+            function testFacebook() {
 
-
-            $("#submit-db").on("click", function() {
-                testDatabase(true);
-            });
-
-            $("#submit-web").on("click", function() {
-
-                //validate inputs
-                var input = $(".web");
-                var valid = true;
-
-                //clear any current errors
-                $("#error-msg").hide();
-                for (var i=0; i<input.length; i++) {
-                    $(input[i]).children(".input-group").removeClass("has-danger");
-                }
-                $("#submit-db").removeClass("btn-success").addClass("btn-warning");
-
-                //check for empties
-                for (var i=0; i<input.length; i++) {
-                    if ($(input[i]).children(".input-group").children("input").val() == "") {
-                        $(input[i]).children(".input-group").addClass("has-danger");
-                        valid = false;
-                    }
-                }
-
-                //save inputs
-                if (valid) {
-                    siteName = $("#web-name").val();
-                    config.listen = $("#web-port").val();
-                    //change page
-                    $("#page-2").fadeOut(function() {
-                        $("#page-3").fadeIn();
-                    });
-                    $("#step-web").removeClass("active").addClass("complete");
-                    $("#step-fb").removeClass("disabled").addClass("active");
-                }
-
-            });
-
-            $("#test-fb").on("click", function () {
-
-                //validate inputs
-                var input = $(".fb");
-                var valid = true;
-
-                //clear any current errors
-                $("#error-msg").hide();
-                for (var i=0; i<input.length; i++) {
-                    $(input[i]).children(".input-group").removeClass("has-danger");
-                }
-                $("#submit-db").removeClass("btn-success").addClass("btn-warning");
-
-                //check for empties
-                for (var i=0; i<input.length; i++) {
-                    if ($(input[i]).children(".input-group").children("input").val() == "") {
-                        $(input[i]).children(".input-group").addClass("has-danger");
-                        valid = false;
-                    }
-                }
-
-                //try facebook connection
-                if (valid) {
-
+                validateInputs(".fb", function() {
+                    //try facebook connection
                     $(".loading").fadeIn();
 
                     var appID = $("#fb-appid").val();
@@ -257,7 +355,7 @@
                         contentType: "text/plain",
                         dataType: 'json',
                         timeout: 5000,
-                        success: function (response) {
+                        success: function() {
                             $.getScript('//connect.facebook.net/en_US/sdk.js', function() {
                                 FB.init({
                                     appId: appID,
@@ -274,126 +372,29 @@
                             displayMsg("danger", "Unable to connect to Facebook app.");
                         }
                     });
-                }
-            });
+                });
 
-            $("#next-fb").on("click", function() {
-                FB.login(function(response){
-                    if (response.status === 'connected') {
-                        FB.api('/me?fields=id,first_name,last_name,email,picture.width(500).height(500)', function(profile) {
-                            $(".loading").fadeOut();
-                            user = {img: profile.picture.data.url, firstName: profile.first_name, secondName: profile.last_name, email: profile.email, facebookID: profile.id};
+            }
 
-                            //store details to config
-                            config.facebook = {appId: $("#fb-appid").val(), secret: $("#fb-secret").val()};
-
-                            //save config to server
-                            $.ajax({
-                                type: "POST",
-                                url: "setup/save-config",
-                                contentType: "application/json",
-                                dataType: 'json',
-                                data: JSON.stringify(config),
-                                timeout: 5000,
-                                success: function (response) {
-                                    var data = JSON.parse(response);
-                                    if (data.status == "success") {
-                                        //change profile info
-                                        $("#facebook-img").attr("src", user.img);
-                                        $("#facebook-username").html(user.firstName + " " + user.secondName);
-                                        $("#facebook-email").html(user.email);
-
-
-                                        $(".loading").fadeOut();
-                                        //change page
-                                        $("#page-3").fadeOut(function() {
-                                            $("#page-4").fadeIn();
-                                        });
-                                    } else {
-                                        $(".loading").fadeOut();
-                                        displayMsg("danger", data.message);
-                                    }
-                                },
-                                error: function () {
-                                    $(".loading").fadeOut();
-                                    displayMsg("danger", "An unknown error occurred.");
-                                }
-                            });
-
-
-                        });
-                    } else {
-                        $(".loading").fadeOut();
-                        displayMsg("danger", "Unable to connect to Facebook app, please check your details.");
-                    }
-                }, {scope: 'public_profile,email'});
-            });
-
-
-            $("#confirm-install").on("click", function() {
-                $(".loading").fadeIn();
-
-                //send admin user info
-                user.username = "Administrator";
-                user.role = "Administrator";
+            //config
+            function saveConfig(config) {
+                //start installation
                 $.ajax({
                     type: "POST",
-                    url: "setup/create-admin",
+                    url: "setup/save-config",
                     contentType: "application/json",
                     dataType: 'json',
-                    data: JSON.stringify(user),
+                    data: JSON.stringify(config),
                     timeout: 5000,
                     success: function (response) {
-                        var data = response;
-                        if (data.status == "success") {
-                            $.ajax({
-                                type: "POST",
-                                url: "setup/sitename",
-                                contentType: "application/json",
-                                dataType: 'json',
-                                data: '{"name": "siteName", "data": "' + siteName + '"}',
-                                timeout: 5000,
-                                success: function (response) {
-                                    var data = response;
-                                    if (data.status == "success") {
-                                        //complete
-                                        $(".loading").fadeOut();
-                                        $("#page-4").fadeOut(function() {
-                                            $("#page-5").fadeIn();
-                                        });
-                                        $("#step-fb").removeClass("active").addClass("complete");
-                                        $("#step-complete").removeClass("disabled").addClass("active");
-
-                                        setTimeout(function(){
-                                            if (config.listen != "80") {
-                                                window.location.replace(window.location.protocol + "//" +  window.location.hostname + ":" + config.listen);
-                                            } else {
-                                                window.location.replace(window.location.protocol + "//" +  window.location.hostname);
-                                            }
-                                        }, 5000);
-                                    } else {
-                                        $(".loading").fadeOut();
-                                        displayMsg("danger", response.data);
-                                    }
-                                },
-                                error: function () {
-                                    $(".loading").fadeOut();
-                                    displayMsg("danger", "An unknown error occurred");
-                                }
-                            });
-                        } else {
-                            $(".loading").fadeOut();
-                            displayMsg("danger", response.data);
+                        if (response.status === "success") {
+                            progressListener();
                         }
-                    },
-                    error: function () {
-                        $(".loading").fadeOut();
-                        displayMsg("danger", "An unknown error occurred");
                     }
                 });
-            });
+            }
 
-        });
+        }); //end document.ready
     </script>
 </head>
 <body>
@@ -423,8 +424,8 @@
                 <a class="bs-wizard-dot"></a>
             </div>
 
-            <div class="col-sm-3 bs-wizard-step disabled" id="step-complete">
-                <div class="text-center bs-wizard-stepnum">Complete</div>
+            <div class="col-sm-3 bs-wizard-step disabled" id="step-install">
+                <div class="text-center bs-wizard-stepnum">Install</div>
                 <div class="progress"><div class="progress-bar"></div></div>
                 <a class="bs-wizard-dot"></a>
             </div>
@@ -587,12 +588,51 @@
     </div> <!--end page-4-->
 
     <div id = "page-5">
-        <h2>Complete!</h2>
+        <h2>Installing...</h2>
         <hr>
-        <p>Setup is complete! The server is now restarting, this page will refresh in approx 5 seconds</p>
+        <p>Setup is applying site settings:</p>
 
-        <div class="facebook-user-div">
-            <img src="img/complete.png" id="complete-img">
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-database"><span>Initialise Database</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-config"><span>Write Config File</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-listen"><span>Set Listening Port</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-siteName"><span>Set Site Name</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-facebookAppID"><span>Set Facebook App ID</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-facebookSecret"><span>Set Facebook Secret</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-Administrator"><span>Create Administrator Role</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-Editor"><span>Create Editor Role</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-Writer"><span>Create Writer Role</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-User"><span>Create User Role</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-admin"><span>Create Administrator Account</span>
+        </div>
+        <div class="status-section">
+            <img src="img/setup-loading.gif" width="25" height="25" id="setup-post"><span>Create Sample Post</span>
+        </div>
+
+        <div class="form-group install">
+            <div class="text-right">
+                <button type="button" class="btn btn-warning disabled" id="launch">Launch Website</button>
+            </div>
         </div>
 
     </div> <!--end page-5-->

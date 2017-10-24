@@ -15,14 +15,29 @@ var configSchema = mongoose.Schema({
     data: {
         type: Object,
         required: true
+    },
+    public: {
+       type: Boolean,
+        required: true,
+        default: false
     }
 });
 
 var Config = module.exports = mongoose.model('Config', configSchema);
 
-//Get Config
-module.exports.getConfig = function(callback, limit) {
+//Get All Config
+module.exports.getAllConfig = function(callback, limit) {
     Config.find(callback).limit(limit);
+};
+
+//Get all Public Config
+module.exports.getPublicConfig = function(callback, limit) {
+    Config.find({public: true}, callback).limit(limit);
+};
+
+//Get One Config
+module.exports.getConfig = function(config, callback) {
+    Config.findOne({name: config}, callback);
 };
 
 //New Config
@@ -30,7 +45,7 @@ module.exports.newConfig = function(config, callback) {
     Config.create(config, callback);
 };
 
-//Update Configname
+//Update Config Name
 module.exports.updateConfig = function(name, config, callback) {
     var query = {name: name};
     var update = {

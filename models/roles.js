@@ -44,7 +44,7 @@ module.exports.updateRole = function(role, permissions, callback) {
     Role.findOneAndUpdate(query, update, callback);
 };
 
-//Delete Config
+//Delete Role
 module.exports.deleteRole = function(role, callback) {
     var query = {role: role};
     Role.remove(query, callback);

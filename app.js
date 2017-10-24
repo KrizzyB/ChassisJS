@@ -53,7 +53,6 @@ function serverInit() {
             log.info("Config file loaded, starting Chassis...");
             var config = JSON.parse(data);  //grab config data
             connectDB(config);  //connect to DB
-            connectFacebook(config);
         }
     });
 }
@@ -68,7 +67,7 @@ function startSetup() {
     } else {    //use default port 80
         listen = "80";
     }
-    setup = true;   //enable setup mode
+    setup = [];   //enable setup mode
     log.info("Setup mode enabled.");
     chassis = app.listen(listen);   //start server
     log.info("Server listening on port " + listen + "...");
@@ -76,7 +75,9 @@ function startSetup() {
 
 //create config
 app.post("/setup/db-test", function(request, response){
+    console.log("Test DB");
     if (setup) {
+        console.log("Test DB");
         log.info("Attempting to connect to database using credentials provided...");
         try {
             //try settings entered by user
@@ -131,183 +132,252 @@ app.post("/setup/db-test", function(request, response){
     }
 });
 
-app.post("/setup/save-config", function(request, response){
+app.post("/setup/save-config", function(request, response) {
     if (setup) {
-        log.info("Attempting to save config...");
-        var newConfig = request.body;
-        fs.writeFile("config-temp.json", JSON.stringify(newConfig), function (error) {   //make config temporary in the event that setup ends prematurely and requires to be run again
+        response.json({"status": "success"});
+        setup.push({});
+        //connect to db
+        log.info("Connecting to database...");
+        var options = {user: request.body.mongodb.username, pass: request.body.mongodb.password, auth: {authdb: request.body.mongodb.dbName}};
+        mongoose.connect(request.body.mongodb.host + ":" + request.body.mongodb.port + "/" + request.body.mongodb.dbName, options, function(error) {
+            //settings have not worked
             if (error) {
-                //error
+                db = mongoose.connection;
+                db.close();
+                log.error("Failed to connect to database. Connection closed.");
+                setup[0].database = {status: "error", error: error};
+                //settings are correct
             } else {
-                log.info("Config written.");
-                //check that config has been created
-                log.info("Verifying...");
-                fs.readFile('./config-temp.json', function read(error, data) { //attempt to read the config file
-                    if (error) {
-                        response.json('{"message": "Chassis was unable to write the config data to disk.", "status": "error"}');
-                        //error
-                    } else {
-                        log.info("Config successfully written to disk.");
-                        response.json('{"status": "success"}');
-                        //connect to db
-                        var config = JSON.parse(data);  //grab config data
-                        connectDB(config);  //connect to DB
-                    }
-                });
-            }
-        })
-    }
-});
+                log.info("Successfully connected to database.");
+                db = mongoose.connection;
+                setup[0].database = {status: "success", error: null};
 
-app.post("/setup/create-admin", function(request, response){
-    if (setup) {
-        log.info("Attempting to create administrator account...");
-        //check for existing Administrator
-        User.getUserByUsername("Administrator", function(error, user) {
-            if (user){  //admin already exists
-                log.warn("Administrator account already exists.");
-                User.deleteUser(user._id, function(error) {
-                    if (error) {    //error
-                        response.json({"data": "An Administrator account already exists and cannot be deleted.", "status":"error"});
-                        //error
-                    } else {    //create new admin
-                        log.info("Administrator account deleted.");
-                        User.newUser(request.body, function(error) {
+                //begin writing data
+
+                //admin account
+                log.info("Attempting to create administrator account...");
+                //check for existing Administrator
+                User.getUserByUsername("Administrator", function(error, user) {
+                    if (user){  //admin already exists
+                        log.warn("Administrator account already exists, deleting account...");
+                        User.deleteUser(user._id, function(error) {
+                            if (error) {    //error
+                                setup[0].admin = {status: "error", error: error};
+                            } else {    //create new admin
+                                log.info("Administrator account deleted.");
+                                User.newUser(request.body.user, function(error) {
+                                    if (error) {
+                                        setup[0].admin = {status: "error", error: error};
+                                    } else {
+                                        setup[0].admin = {status: "success", error: null};
+                                        log.info("New administrator account created.");
+                                    }
+                                })
+                            }
+                        })
+                    } else if (error) { //error looking for Admin account
+                        setup[0].admin = {status: "error", error: error};
+                    } else {    //admin account does not exist
+                        User.newUser(request.body.user, function(error) {
                             if (error) {
-                                response.json({"data": "Cannot create new user, please check your database permissions.", "status":"error"});
-                                //error
+                                setup[0].admin = {status: "error", error: error};
                             } else {
-                                response.json({"status": "success"});
-                                log.info("New administrator account created.");
+                                setup[0].admin = {status: "success", error: null};
+                                log.info("Administrator account created.");
                             }
                         })
                     }
-                })
-            } else if (error) { //error looking for Admin account
-                response.json({"data": "An error occurred attempting to read the user database.", "status":"error"});
-                //error
-            } else {    //admin account does not exist
-                User.newUser(request.body, function(error) {
+                });
+
+                log.info("Attempting to save site config...");
+
+                //site name
+
+                //check for existing config
+                Config.deleteConfig("siteName", function(error) {
                     if (error) {
-                        response.json({"data": "Cannot create new user, please check your database permissions.", "status":"error"});
-                        //error
+                        setup[0].siteName = {status: "error", error: error};
                     } else {
-                        response.json({"status": "success"});
-                        log.info("Administrator account created.");
+                        Config.newConfig({name: "siteName", data: request.body.siteName, public: true}, function(error) {
+                            if (error) {
+                                setup[0].siteName = {status: "error", error: error};
+                            } else {
+                                setup[0].siteName = {status: "success", error: null};
+                                log.info("Site name saved.");
+                            }
+                        })
                     }
-                })
-            }
-        });
-    }
-});
+                });
 
-app.post("/setup/sitename", function(request, response){
-    if (setup) {
-        log.info("Attempting to save site config...");
-        //check for existing config
-        Config.deleteConfig("siteName", function(error) {
-            if (error) {
-                response.json({"data": "An error occurred trying to overwrite the site name property.", "status":"error"});
-                //error
-            } else {
-                var config = request.body;
-                Config.newConfig(config, function(error) {
+                //listening port
+
+                //check for existing config
+                Config.deleteConfig("listen", function(error) {
                     if (error) {
-                        response.json({"data": "An error occurred trying to overwrite the site name property.", "status":"error"});
-                        //error
+                        setup[0].listen = {status: "error", error: error};
                     } else {
-                        response.json({"status": "success"});
-                        log.info("Site config saved.");
-                        dbInit();
+                        Config.newConfig({name: "listen", data: request.body.listen}, function(error) {
+                            if (error) {
+                                setup[0].listen = {status: "error", error: error};
+                            } else {
+                                setup[0].listen = {status: "success", error: null};
+                                log.info("Site port saved.");
+                            }
+                        })
                     }
-                })
-            }
-        });
+                });
 
-    }
-});
+                //facebook app id
 
-// create required default data in database
-function dbInit() {
-    log.info("Attempting to initialise the database...");
-    if (setup) {
-        //create default roles
-        var administrator = {role: "Administrator", permissions: ["admin-cp", "view-all-users", "update-any-user-profile", "publish-post", "view-pending-posts", "create-new-post", "delete-post", "edit-post", "edit-categories", "user"]};
-        var editor = {role: "Editor", permissions: ["publish-post", "view-pending-posts", "create-new-post", "delete-post", "edit-categories", "edit-post", "user"]};
-        var writer = {role: "Writer", permissions: ["view-pending-posts", "create-new-post", "edit-post", "user"]};
-        var user = {role: "User", permissions: ["user"]};
-        var role = [administrator, editor, writer, user];
+                //check for existing config
+                Config.deleteConfig("facebookAppID", function(error) {
+                    if (error) {
+                        setup[0].facebookAppID = {status: "error", error: error};
+                    } else {
+                        Config.newConfig({name: "facebookAppID", data: request.body.facebookAppID, public: true}, function(error) {
+                            if (error) {
+                                setup[0].facebookAppID = {status: "error", error: error};
+                            } else {
+                                setup[0].facebookAppID = {status: "success", error: null};
+                                log.info("Facebook App ID saved.");
+                            }
+                        })
+                    }
+                });
 
-        for (var i=0; i < role.length; i++) {
-            Role.newRole(role[i], function(error, role) {
-                if (error) {
-                    log.warn("Could not create role in database, it may already exist.");
-                } else {
-                    log.info("Created " + role.role + " role in database.");
-                }
-            })
-        }
+                //facebook app secret
 
-        //create sample post
-        log.info("Attempting to create the sample post...");
-        Post.getPostByPermalink("my-first-post", function (error, post) {   //check if "my-first-post" already exists
-            if (error) {
-                console.log(error);
-                //error
-            } else {
-                if (!post) {
-                    User.getUserByUsername("Administrator", function(error, user) {   //get id of admin to include as post author
-                        console.log(user);
+                //check for existing config
+                Config.deleteConfig("facebookSecret", function(error) {
+                    if (error) {
+                        setup[0].facebookSecret = {status: "error", error: error};
+                    } else {
+                        Config.newConfig({name: "facebookSecret", data: request.body.facebookSecret}, function(error) {
+                            if (error) {
+                                setup[0].facebookSecret = {status: "error", error: error};
+                            } else {
+                                setup[0].facebookSecret = {status: "success", error: null};
+                                log.info("Facebook Secret saved.");
+                            }
+                        })
+                    }
+                });
+
+                // create required default data in database
+
+                log.info("Attempting to initialise the database...");
+                //create default roles
+                var administrator = {role: "Administrator", permissions: ["admin-cp", "view-all-users", "update-any-user-profile", "publish-post", "view-pending-posts", "create-new-post", "delete-post", "edit-post", "edit-categories", "user"]};
+                var editor = {role: "Editor", permissions: ["publish-post", "view-pending-posts", "create-new-post", "delete-post", "edit-categories", "edit-post", "user"]};
+                var writer = {role: "Writer", permissions: ["view-pending-posts", "create-new-post", "edit-post", "user"]};
+                var user = {role: "User", permissions: ["user"]};
+                var role = [administrator, editor, writer, user];
+
+                function postRole(role) {
+                    Role.deleteRole(role.role, function (error) {
                         if (error) {
-                            //error
+                            setup[0][role.role] = {status: "error", error: error};
                         } else {
-                            var post = {title: "My First Post", author: user._id, content: "This post is a test, it should have been automatically deleted, check your database account has the correct permissions and restart the setup by deleting the config file", status: "published", permalink: "my-first-post", postDate: "2012-04-23T18:25:43.511Z", category: "test"};
-                            Post.newPost(post, function(error) {
-                                //error when attempting to post
+                            Role.newRole(role, function(error) {
                                 if (error) {
-                                    console.log(error);
-                                    db.close();
+                                    setup[0][role.role] = {status: "error", error: error};
                                 } else {
-                                    log.info("Sample post created.");
-                                    fs.rename("./config-temp.json", "./config.json", function(error) {
+                                    setup[0][role.role] = {status: "success", error: null};
+                                }
+                            })
+                        }
+                    });
+                }
+
+                for (var i=0; i < role.length; i++) {
+                    postRole(role[i]);
+                }
+
+                //create sample post
+                log.info("Attempting to create the sample post...");
+                Post.getPostByPermalink("my-first-post", function (error, post) {   //check if "my-first-post" already exists
+                    if (error) {
+                        setup[0].post = {status: "error", error: error};
+                    } else {
+                        if (!post) {
+                            User.getUserByUsername("Administrator", function(error, user) {   //get id of admin to include as post author
+                                if (error) {
+                                    setup[0].post = {status: "error", error: error};
+                                } else {
+                                    var post = {title: "My First Post", author: user._id, content: "This post is a test, it should have been automatically deleted, check your database account has the correct permissions and restart the setup by deleting the config file", status: "published", permalink: "my-first-post", postDate: "2012-04-23T18:25:43.511Z", category: "test"};
+                                    Post.newPost(post, function(error) {
+                                        //error when attempting to post
                                         if (error) {
-                                            //error
+                                            setup[0].post = {status: "error", error: error};
                                         } else {
-                                            //restart server
-                                            listen = process.argv[2] = null;    //clear manually specified port, instead go with the one input during setup
-                                            log.info("Setup complete, restarting the server.");
-                                            db.close();
-                                            chassis.close();    //stop listening
-                                            setup = false;  //reset app to normal mode
-                                            serverInit();   //start again
+                                            log.info("Sample post created.");
+                                            setup[0].post = {status: "success", error: null};
                                         }
                                     });
                                 }
                             });
-                        }
-                    });
-                } else {
-                    log.warn("The sample post already exists, skipping creation.");
-                    fs.rename("./config-temp.json", "./config.json", function(error) {
-                        if (error) {
-                            //error
                         } else {
-                            //restart server
-                            listen = process.argv[2] = null;    //clear manually specified port, instead go with the one input during setup
-                            log.info("Setup complete, restarting the server.");
-                            db.close();
-                            chassis.close();    //stop listening
-                            setup = false;  //reset app to normal mode
-                            serverInit();   //start again
+                            log.warn("The sample post already exists, skipping creation.");
+                            setup[0].post = {status: "success", error: null};
                         }
-                    });
-                }
+                    }
+                });
+
+                //write config file
+                log.info("Attempting to save config file...");
+                var config = {mongodb: request.body.mongodb};
+                fs.writeFile("config-temp.json", JSON.stringify(config), function (error) {   //make config temporary in the event that setup ends prematurely and requires to be run again
+                    if (error) {
+                        setup[0].config = {status: "error", error: error};
+                    } else {
+                        log.info("Config written.");
+                        //check that config has been created
+                        log.info("Verifying...");
+                        fs.readFile('./config-temp.json', function read(error) { //attempt to read the config file
+                            if (error) {
+                                setup[0].config = {status: "error", error: error};
+                            } else {
+                                log.info("Config successfully written to disk.");
+                                setup[0].config = {status: "success", error: null};
+                            }
+                        });
+                    }
+                })
             }
         });
-
     }
+});
 
-}
+app.get("/setup/status", function(request, response){
+    if (setup) {
+        response.json(setup);
+    }
+});
+
+app.get("/setup/complete", function(request, response){
+    if (setup) {
+        fs.rename("./config-temp.json", "./config.json", function(error) {
+            if (error) {
+                response.json({"status": "error", "error": error});
+            } else {
+                Config.getConfig("listen", function(error, port) {
+                    if (error) {
+                        //error
+                    } else {
+                        response.json({"status": "success", "port": port});
+                        //restart server
+                        listen = process.argv[2] = null;    //clear manually specified port, instead go with the one input during setup
+                        log.info("Setup complete, restarting the server.");
+                        db.close();
+                        chassis.close();    //stop listening
+                        setup = false;  //reset app to normal mode
+                        serverInit();   //start again
+                    }
+                });
+            }
+        });
+    }
+});
 
 /**---------------------------------------------------------------------------------------------------------------------
  * Connect To Database
@@ -326,22 +396,41 @@ function connectDB(config) {
     }
     db = mongoose.connection;
 
+    //get config
+    Config.getConfig("facebookAppID", function(error, appID) {
+        if (error) {
+            //error
+        } else {
+            Config.getConfig("facebookSecret", function(error, secret) {
+                if (error) {
+                    //error
+                } else {
+                    connectFacebook(appID.data, secret.data);
+                }
+            });
+        }
+    });
+
     if (!setup) {
-        startServer(config);    //start server if we are not in setup mode
+        Config.getConfig("listen", function(error, listen) {
+            if (error) {
+                //error
+            } else {
+                startServer(listen.data);    //start server if we are not in setup mode
+            }
+        });
+
     }
 }
 
 /**---------------------------------------------------------------------------------------------------------------------
  * Login System
  */
-
-//login url
-app.get("/auth/facebook", passport.authenticate("facebook", {scope: ["public_profile", "email"], session: false}));
-
-function connectFacebook(config) {
+//initialise facebook procedure
+function connectFacebook(appID, secret) {
     passport.use(new FacebookStrategy({
-        clientID: config.facebook.appId,
-        clientSecret: config.facebook.secret,
+        clientID: appID,
+        clientSecret: secret,
         callbackURL: "/auth/facebook/callback",
         profileFields: ["email", "id", "first_name", "last_name", "gender", "picture.type(large)"],
         passReqToCallback: true
@@ -368,9 +457,14 @@ function connectFacebook(config) {
 
         });
     }));
+
+    //TODO add more login options
 }
 
-//login callback url
+//facebook login url
+app.get("/auth/facebook", passport.authenticate("facebook", {scope: ["public_profile", "email"], session: false}));
+
+//facebook callback
 app.get("/auth/facebook/callback", passport.authenticate('facebook', {failureRedirect: '/login'}), function (request, response) {
     createSession(request.user, response);
 });
@@ -429,8 +523,8 @@ function generateID()
  * Permission Checks
  */
 
-function checkPermission(permission, cookie, callback) {
-    Session.getSession(cookie, function(error, user) {
+function checkPermission(permission, cookie, callback) {    //callback(error, permitted)
+    Session.getSession(cookie, function(error, user) {  //get user session info from cookie data
         if (error) {
             callback(true, false);
         } else {
@@ -443,11 +537,11 @@ function checkPermission(permission, cookie, callback) {
                     } else {
                         permitted = role.permissions;
                         for (var i = 0; i < permitted.length; i++) {
-                            if (permission === permitted[i]) {
+                            if (permission === permitted[i]) {  //if permission requested = role permission
                                 result = true;
                             }
                         }
-                        callback(false, result);
+                        callback(false, result);    //if any matches occur, "true" is returned
                     }
                 });
             } else {    //no user session is active (user is not logged in)
@@ -477,13 +571,15 @@ app.get("/auth/session/:sessionID", function(request, response){
     Session.getSession(request.params.sessionID, function(error, session) {
         if (error) {
             response.json({"data": error, "status":"error"});
-        } else {
+        } else if(session) {
             User.getUserByID(session.userID, function(error, user) {
                 if (error) {
                     response.json({"data": error, "status":"error"});
                 }
                 response.json({"data": user, "status":"success"});
             });
+        } else {
+            response.json({"data": null, "status":"success"});
         }
     })
 });
@@ -511,7 +607,7 @@ app.get("/data/settings", function(request, response){
 
 //get config
 app.get("/data/config", function(request, response){
-    Config.getConfig(function(error, config) {
+    Config.getPublicConfig(function(error, config) {
         if (error) {
             response.json({"data": error, "status":"error"});
         } else {
@@ -1386,13 +1482,12 @@ function handleError(level, type, error, msg, request, response) {
  * Start Server
  */
 
-function startServer(config) {
-    var listen;
+function startServer(listen) {
     //override port if included in command line
     if (Number(process.argv[2])) {
         listen = process.argv[2];
     } else {    //use default port in config
-        listen = config.listen;
+        //do nout
     }
     chassis = app.listen(listen);    //start listening for requests
     console.log("Listening on port " + listen);

@@ -1,28 +1,43 @@
 <!DOCTYPE html>
-<html lang="en" ng-app="chassis" ng-controller="contentController" id="page">
+<html lang="en" ng-app="chassis" ng-controller="global" id="page">
 <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" href="/css/bootstrap-tagsinput.css">
+    <link rel="stylesheet" type="text/css" href="/css/nprogress.css">
     <link rel="stylesheet" type="text/css" href="/css/style.css">
     <script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ=" crossorigin="anonymous"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.8/angular.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+    <script type="application/javascript" src="/js/bootstrap-tagsinput.js"></script>
+    <script type="application/javascript" src="/js/nprogress.js"></script>
     <script type="application/javascript" src="/js/chassis.js"></script>
-    <title ng-bind="siteName"></title>
+    <title ng-bind="config.siteName"></title>
+
+    <script type="text/ng-template" id="menuTree">
+        <a href="{{menu.url}}">{{menu.display}}</a>
+        <ul ng-if="menu.children" class="submenu">
+            <li ng-repeat="menu in menu.children" ng-include="'menuTree'" class="child"><a href="{{menu.url}}">{{menu.display}}</a></li>
+        </ul>
+    </script>
 </head>
 <body>
 
 <div id="header">
     <div id="header-container">
-        <div id="user-menu">
-            <a href="{{newPostUrl}}">{{newPostText}}</a>
-            <a href="{{pendingPostsUrl}}">{{pendingPostsText}}</a>
-            <a id="user-menu-info" href="/users/{{user.username}}"><img ng-src="{{user.img}}">{{user.username}}</a>
-            <a href="{{controlPanelUrl}}">{{controlPanelText}}</a>
-            <a href="{{signInUrl}}">{{signInText}}</a>
+        <div id="tools-menu" ng-show="config.accounts">
+            <a href="/publish/new" ng-show="create">New Post</a>
+            <span ng-show="create">-</span>
+            <a href="/pending" ng-show="pending">Pending Posts</a>
+            <span ng-show="pending">-</span>
+            <a href="/cp" ng-show="cp">Admin</a>
+            <span ng-show="cp">-</span>
+            <a id="user-menu-info" href="/user/{{user.username}}"><img ng-src="{{user.img}}" ng-show="user">{{user.username}}</a>
+            <a href="/login" ng-show="login">Log In</a>
         </div>
     </div>
 </div>
+
 <div id="menu">
     <div id="menu-container">
         <div id="search-bar">
@@ -33,9 +48,9 @@
                 </span>
             </div>
         </div>
-        <ul>
-            <li><a href="/">Home</a></li>
-            <li ng-repeat="category in categories"><a href="/category/{{category.name}}">{{category.name}}</a></li>
+
+        <ul id="menu-items">
+            <li ng-repeat="menu in menus" class="parent" ng-include="'menuTree'"></li>
         </ul>
     </div>
 </div>

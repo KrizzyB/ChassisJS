@@ -6,11 +6,15 @@ var mongoose = require("mongoose");
 
 //Config Schema
 var categorySchema = mongoose.Schema({
-   name: {
+    id: {
+        type: String,
+        required: true,
+        index: true,
+        unique: true
+    },
+    name: {
        type: String,
-       required: true,
-       index: true,
-       unique: true
+       required: true
    }
 });
 

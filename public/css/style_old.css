@@ -36,20 +36,20 @@ body a:link, body a:visited {
     display: none;
 }
 
-/* Tools Menu Style */
+/* User Menu Style */
 
-#tools-menu {
+#user-menu {
     margin: 0 20px 0 0;
-    padding: 5px;
+    padding: 10px;
     float: right;
     background: black;
     border-bottom-left-radius: 20px;
     border-bottom-right-radius: 20px;
-    line-height: 25px;
+    line-height: 30px;
 }
 
-#tools-menu img{
-    width: 25px;
+#user-menu img{
+    width: 30px;
     vertical-align: top;
     margin-right: 10px;
 }
@@ -59,6 +59,7 @@ body a:link, body a:visited {
 #menu {
     width: 100%;
     background: linear-gradient(#46494f, #303239);
+    overflow: hidden;
     padding: 5px 0;
 }
 
@@ -72,56 +73,29 @@ body a:link, body a:visited {
     color: white;
 }
 
-/* Main Menu */
-#menu #menu-items {
-    list-style:none;
-    position:relative;
-    float:left;
-    margin:0;
-    padding:0;
-}
-
-#menu #menu-items a {
+#menu a:link {
+    color: white;
     text-decoration: none;
 }
 
-#menu #menu-items .parent {
-    padding: 0 5px;
-    margin: 0 5px;
-    display: inline-block;
+#menu a:visited {
+    color: white;
+    text-decoration: none;
 }
 
-#menu #menu-items .parent:hover {
+#menu ul {
+    margin: 0;
+    padding: 0;
+}
+
+#menu li {
+    display: inline-block;
+    padding: 0 10px;
+}
+
+#menu li:hover {
     background: #53575e;
 }
-
-/* Sub Menu */
-#menu #menu-items .submenu {
-    border-left: 3px solid #53575e;
-    display: none;
-    position: absolute;
-    background: white;
-    list-style: none;
-    padding: 0;
-    margin: 0 0 0 -5px;
-    font-size: 11pt;
-    box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
-}
-
-#menu #menu-items .submenu a {
-    color: black;
-}
-
-#menu #menu-items .child {
-    float:none;
-    min-width: 150px;
-    padding-left: 10px;
-}
-
-#menu #menu-items .child:hover {
-    background: #a9abae;
-}
-
 
 #search-bar {
     float: right;
@@ -176,8 +150,12 @@ h1 {
 
 /* Post Page */
 
-.post {
+#post {
     padding: 0 10px 0 0;
+}
+
+#publishing-options {
+    display: none;
 }
 
 #author-info p{
@@ -234,10 +212,9 @@ h1 {
 
 /* User Profile */
 
-#profile-picture {
+#user-picture {
     float: left;
     margin: 0 20px 0 0;
-    width: 200px;
 }
 
 /* Control Panel */

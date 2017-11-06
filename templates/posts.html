@@ -1,7 +1,7 @@
-<div id="content" ng-controller="postController">
+<div id="content" ng-controller="post">
 
     <div id="column-left">
-        <div id="post">
+        <div class="post" ng-show="post">
             <h1>{{post.title}}</h1>
             <h3>{{post.subTitle}}</h3>
             <span>{{post.postDate | date:'MMMM dd, yyyy'}}</span>
@@ -12,27 +12,27 @@
     </div>
 
     <div id="column-right">
-        <div class="sidebar">
-            <div id="publishing-options">
+        <div class="sidebar" ng-show="post">
+            <div id="publishing-options" ng-show="publisher">
                 <h2>Publishing Options</h2>
                 <p>This post is currently unpublished</p>
                 <div class="form-group">
-                    <a href="/publish/{{post.permalink}}" class="btn btn-primary" id="post-publish">Publish</a>
-                    <a href="/edit/{{post.permalink}}" class="btn btn-success" id="post-edit">Edit</a>
-                    <a href="/delete/{{post.permalink}}" class="btn btn-danger" id="post-delete">Delete</a>
+                    <a href="/publish/{{post._id}}" class="btn btn-primary" id="post-publish">Publish</a>
+                    <a href="/edit/{{post._id}}" class="btn btn-success" id="post-edit">Edit</a>
+                    <a href="/delete/{{post._id}}" class="btn btn-danger" id="post-delete">Delete</a>
                 </div>
                 <br>
             </div>
 
             <div id="author-info">
                 <div id="author-profile">
-                    <a href="/users/{{author.username}}">
-                        <img ng-src="{{author.img}}">
-                        <p id="author-name">{{author.username}}</p>
+                    <a href="/user/{{post.author.username}}">
+                        <img ng-src="{{post.author.img}}">
+                        <p id="author-name">{{post.author.username}}</p>
                     </a>
-                    <p id="author-website"><a href="{{author.website}}">{{author.website}}</a></p>
+                    <p id="author-website"><a href="{{post.author.website}}">{{post.author.website}}</a></p>
                 </div>
-                <p id="author-bio">{{author.bio}}</p>
+                <p id="author-bio">{{post.author.bio}}</p>
             </div>
         </div>
     </div>

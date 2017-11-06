@@ -24,7 +24,7 @@ const cookieParser = require('cookie-parser');
 const passport = require("passport");
 const FacebookStrategy = require("passport-facebook").Strategy;
 const log = require("winston");
-var listen, db, chassis, session;
+var listen, db, chassis;
 var setup = false;  //set app to standard running mode by default
 
 app.use(express.static('public'));  //enable access to static directory "public" from site
@@ -37,6 +37,7 @@ log.exitOnError = false;
 //setup DB models
 var Session = require("./models/sessions");
 var Config = require("./models/config");
+var Menu = require("./models/menu");
 var Category = require("./models/categories");
 var Role = require("./models/roles");
 var User = require("./models/users");
@@ -75,9 +76,7 @@ function startSetup() {
 
 //create config
 app.post("/setup/db-test", function(request, response){
-    console.log("Test DB");
     if (setup) {
-        console.log("Test DB");
         log.info("Attempting to connect to database using credentials provided...");
         try {
             //try settings entered by user
@@ -419,7 +418,6 @@ function connectDB(config) {
                 startServer(listen.data);    //start server if we are not in setup mode
             }
         });
-
     }
 }
 
@@ -466,7 +464,7 @@ app.get("/auth/facebook", passport.authenticate("facebook", {scope: ["public_pro
 
 //facebook callback
 app.get("/auth/facebook/callback", passport.authenticate('facebook', {failureRedirect: '/login'}), function (request, response) {
-    createSession(request.user, response);
+    createSession(request, response);
 });
 
 passport.serializeUser(function(user, done) {
@@ -477,19 +475,18 @@ passport.deserializeUser(function(user, done) {
     done(null, user);
 });
 
-function createSession(user, response) {
+function createSession(request, response) {
 
-    var session = {sessionID: generateID(), userID: user._id};
+    var session = {sessionID: generateID(), userID: request.user._id};
 
-    if (user.username) {
+    if (request.user.username) {
 
         Session.newSession(session, function(error) {
             if (error) {
                 response.status(500).send(error);
             } else {
-                console.log("New Session Created. Cookie ID: " + session.sessionID);
-                response.cookie("session", session.sessionID, {maxAge: 1000 * 60 * 60 * 24 * 30});
-                response.redirect("/");
+                response.cookie("chassis_session", session.sessionID, {maxAge: 1000 * 60 * 60 * 24 * 30});
+                response.redirect(request.get("referer"));
             }
         })
 
@@ -499,8 +496,7 @@ function createSession(user, response) {
             if (error) {
                 response.status(500).send(error);
             } else {
-                console.log("New Temporary Session Created. Cookie ID: " + session.sessionID);
-                response.cookie("tempSession", session.sessionID, {maxAge: 1000 * 60 * 5});
+                response.cookie("temp_chassis_session", session.sessionID, {maxAge: 1000 * 60 * 5});
                 buildPage("username", response);
             }
         })
@@ -551,9 +547,19 @@ function checkPermission(permission, cookie, callback) {    //callback(error, pe
     });
 }
 
+//permission denied options
+function permissionDenied(request, response) {
+    if(request.cookies.chassis_session) {
+        //user is logged in
+        response.redirect("/401");
+    } else {
+        buildPage("login", response);
+    }
+}
+
 //check permission api
 app.get("/data/permission/:permission", function(request, response){
-    checkPermission(request.params.permission, request.cookies.session, function(error, permitted) {
+    checkPermission(request.params.permission, request.cookies.chassis_session, function(error, permitted) {
         if (error) {
             response.json({"data": "An error occurred attempting to determine the user's permissions.", "status":"error"});
         } else {
@@ -566,19 +572,69 @@ app.get("/data/permission/:permission", function(request, response){
  * Database Request Handlers
  */
 
-//get session
-app.get("/auth/session/:sessionID", function(request, response){
-    Session.getSession(request.params.sessionID, function(error, session) {
-        if (error) {
+/**---------------------------------------------------------------------------------------------------------------------
+ * Menu Endpoints
+ */
+
+//get menu
+app.get("/data/menu", function(request, response){
+    Menu.getMenu(function(error, menu) {
+        if (error) {    //something went wrong
             response.json({"data": error, "status":"error"});
-        } else if(session) {
-            User.getUserByID(session.userID, function(error, user) {
+        } else {    //no user is logged in
+            response.json({"data": menu, "status":"success"});
+        }
+    })
+});
+
+//add menu item
+app.post("/data/menu", function(request, response){
+    Menu.newMenu(request.body, function(error, menu) {
+        if (error) {    //something went wrong
+            response.json({"data": error, "status":"error"});
+        } else {    //no user is logged in
+            response.json({"data": menu, "status":"success"});
+        }
+    })
+});
+
+//edit menu item
+app.put("/data/menu/:name", function(request, response){
+    Menu.editMenu(request.params.name, request.body, function(error, menu) {
+        if (error) {    //something went wrong
+            response.json({"data": error, "status":"error"});
+        } else {    //no user is logged in
+            response.json({"data": menu, "status":"success"});
+        }
+    })
+});
+
+//delete menu item
+app.delete("/data/menu/:name", function(request, response){
+    Menu.deleteMenu(request.params.name, function(error, menu) {
+        if (error) {    //something went wrong
+            response.json({"data": error, "status":"error"});
+        } else {    //no user is logged in
+            response.json({"data": menu, "status":"success"});
+        }
+    })
+});
+
+//get session user details
+app.get("/auth/session", function(request, response){
+    Session.getSession(request.cookies.chassis_session, function(error, session) {
+        if (error) {    //something went wrong
+            response.json({"data": error, "status":"error"});
+        } else if(session) {    //user is logged in
+            //get user's role details
+            Role.getRole(session.userID.role, function(error, role) {
                 if (error) {
                     response.json({"data": error, "status":"error"});
+                } else {
+                    response.json({"data": {user: {username: session.userID.username, img: session.userID.img}, permissions: role.permissions}, "status":"success"});
                 }
-                response.json({"data": user, "status":"success"});
-            });
-        } else {
+            })
+        } else {    //no user is logged in
             response.json({"data": null, "status":"success"});
         }
     })
@@ -586,7 +642,7 @@ app.get("/auth/session/:sessionID", function(request, response){
 
 //get full settings
 app.get("/data/settings", function(request, response){
-    checkPermission("admin-cp", request.cookies.session, function(error, permitted) {
+    checkPermission("admin-cp", request.cookies.chassis_session, function(error, permitted) {
         if (error) {
             handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
@@ -664,7 +720,7 @@ app.get("/data/categories", function(request, response){
 
 //add category
 app.post("/data/category", function(request, response){
-    checkPermission("edit-categories", request.cookies.session, function(error, permission) {
+    checkPermission("edit-categories", request.cookies.chassis_session, function(error, permission) {
         if (permission) {
             var category = request.body;
             Category.newCategory(category, function(error, category) {
@@ -751,7 +807,7 @@ app.delete("/data/role/:role", function(request, response){
 
 //get all users
 app.get("/data/users", function(request, response){
-    checkPermission("view-all-users", request.cookies.session, function(error, permission) {
+    checkPermission("view-all-users", request.cookies.chassis_session, function(error, permission) {
         if (error) {
             handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
@@ -771,18 +827,26 @@ app.get("/data/users", function(request, response){
 });
 
 //get user by username
-app.get("/data/users/:username", function(request, response){
+app.get("/data/user/:username", function(request, response){
     User.getUserByUsername(request.params.username, function(error, user) {
         if (error) {
             response.json({"data": error, "status":"error"});
+        } else if(!user) {
+            response.json({"data": null, "status":"success"});
         } else {
-            response.json({"data": user, "status":"success"});
+            Post.getPostsByAuthor(user._id, function(error, posts) {
+                if (error) {
+                    response.json({"data": error, "status":"error"});
+                } else {
+                    response.json({"data": {"profile": user, "posts": posts}, "status":"success"});
+                }
+            },5);
         }
-    })
+    });
 });
 
 //create new user
-app.post("/data/users", function(request, response){
+app.post("/data/user", function(request, response){
     var user = request.body;
     User.newUser(user, function(error, user) {
         if (error) {
@@ -794,11 +858,11 @@ app.post("/data/users", function(request, response){
 });
 
 //update user
-app.put("/data/update/user/:id", function(request, response){
+app.put("/data/user/:id", function(request, response){
     var requestUser = request.params.id;
     var profile = request.body;
 
-    Session.getSession(request.cookies.session, function(error, session) {
+    Session.getSession(request.cookies.chassis_session, function(error, session) {
         if (error) {
             response.json({"data": error, "status":"error"});
         } else {
@@ -811,7 +875,7 @@ app.put("/data/update/user/:id", function(request, response){
                     }
                 })
             } else {
-                checkPermission("update-any-user-profile", request.cookies.session, function(error, permitted) {
+                checkPermission("update-any-user-profile", request.cookies.chassis_session, function(error, permitted) {
                     if (error) {
                         handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                     } else {
@@ -839,10 +903,10 @@ app.put("/data/update/user/:id", function(request, response){
 
 //set user username
 app.put("/data/username", function(request, response){
-    if (request.cookies.tempSession) {
+    if (request.cookies.temp_chassis_session) {
         var username = request.body;
 
-        Session.getSession(request.cookies.tempSession, function(error, session) {
+        Session.getSession(request.cookies.temp_chassis_sessio, function(error, session) {
             if (error) {
                 response.json({"data": error, "status":"error"});
             } else {
@@ -861,7 +925,7 @@ app.put("/data/username", function(request, response){
 });
 
 //delete user
-app.delete("/data/users/:id", function(request, response){
+app.delete("/data/user/:id", function(request, response){
     User.deleteUser(request.params.id, function(error, user) {
         if (error) {
             response.json({"data": error, "status":"error"});
@@ -894,23 +958,22 @@ app.get("/data/pending", function(request, response){
 });
 
 //get post by permalink
-app.get("/data/posts/:permalink", function(request, response){
-    Post.getPostByPermalink(request.params.permalink, function(error, post) {
+app.get("/data/post/:category/:permalink", function(request, response){
+    Post.getPostByPermalink(request.params.permalink, request.params.category, function(error, post) {
         if (error) {
             response.json({"data": error, "status":"error"});
         } else {
             if (post) { //if a post is found
                 if (post.status === "unpublished") {
-
                     //check the user has the permission to view unpublished posts
-                    checkPermission("view-pending-posts", request.cookies.session, function(error, permission) {
+                    checkPermission("view-pending-posts", request.cookies.chassis_session, function(error, permission) {
                         if (error) {
                             handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                         } else {
                             if (permission) {
                                 response.json({"data": post, "status":"success"});
                             } else {    //if not, only show the post if the user is the author
-                                Session.getSession(request.cookies.session, function(error, session) {  //get the users session
+                                Session.getSession(request.cookies.chassis_session, function(error, session) {  //get the users session
                                     if (error) {
                                         response.json({"data": error, "status":"error"});
                                     } else {
@@ -936,7 +999,7 @@ app.get("/data/posts/:permalink", function(request, response){
 });
 
 //get post by ID
-app.get("/data/posts/:id", function(request, response){
+app.get("/data/post/:id", function(request, response){
     Post.getPostByID(request.params.id, function(error, post) {
         if (error) {
             response.json({"data": error, "status":"error"});
@@ -946,8 +1009,9 @@ app.get("/data/posts/:id", function(request, response){
     })
 });
 
-app.get("/data/postsby/:username", function(request, response){
-    User.getUserByUsername(request.params.username, function(error, user) {
+//get posts by user
+app.get("/data/posts/:user", function(request, response){
+    User.getUserByUsername(request.params.user, function(error, user) {
         if (error) {
             response.json({"data": error, "status":"error"});
         } else {
@@ -969,14 +1033,14 @@ app.get("/data/postsby/:username", function(request, response){
 
 //create new post
 app.post("/data/posts", function(request, response){
-    checkPermission("create-new-post", request.cookies.session, function(error, permission) {
+    checkPermission("create-new-post", request.cookies.chassis_session, function(error, permission) {
         if (error) {
             handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
             if (permission) {
                 var post = request.body;
                 //set post author to current user
-                Session.getSession(request.cookies.session, function(error, session) {
+                Session.getSession(request.cookies.chassis_session, function(error, session) {
                     if (error) {
                         response.json({"data": error, "status":"error"});
                     } else {
@@ -1013,7 +1077,7 @@ app.put("/data/posts/:id", function(request, response){
 
 //delete post
 app.delete("/data/posts/:permalink", function(request, response){
-    checkPermission("delete-post", request.cookies.session, function(error, permission) {
+    checkPermission("delete-post", request.cookies.chassis_session, function(error, permission) {
         if (error) {
             handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
@@ -1066,13 +1130,13 @@ app.get("/data/category/:query", function(request, response){
 //upload image
 app.post("/data/img", function(request, response){
 
-    checkPermission("create-new-post", request.cookies.session, function(error, permission) {
+    checkPermission("create-new-post", request.cookies.chassis_session, function(error, permission) {
         if (error) {
             handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
         } else {
             if (permission) {
 
-                Session.getSession(request.cookies.session, function(error, session) {
+                Session.getSession(request.cookies.chassis_session, function(error, session) {
                     if (error) {
                         response.json({"data": error, "status":"error"});
                     } else {
@@ -1132,7 +1196,7 @@ app.post("/data/img", function(request, response){
  */
 
 //display a post
-app.get("/posts/:post", function(request, response) {
+app.get("/post/:category/:post", function(request, response) {
     if (setup) {
         response.sendFile(__dirname + '/controlpanel/setup.html');
     } else {
@@ -1141,11 +1205,11 @@ app.get("/posts/:post", function(request, response) {
 });
 
 //display a user profile
-app.get("/users/:user", function(request, response) {
+app.get("/user/:user", function(request, response) {
     if (setup) {
         response.sendFile(__dirname + '/controlpanel/setup.html');
     } else {
-        buildPage("users", response);
+        buildPage("profile", response);
     }
 });
 
@@ -1168,41 +1232,42 @@ app.get("/category/:category", function(request, response) {
 });
 
 //publish requests
-app.get("/publish/:param", function(request, response) {
+app.get("/publish/:post", function(request, response) {
     if (setup) {
         response.sendFile(__dirname + '/controlpanel/setup.html');
     } else {
-        if (request.params.param === "new") {
-            checkPermission("create-new-post", request.cookies.session, function(error, permission) {
+        if (request.params.post === "new") {
+            checkPermission("create-new-post", request.cookies.chassis_session, function(error, permission) {
                 if (error) {
                     handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                 } else {
                     if (permission) {
                         buildPage("new-post", response);
                     } else {
-                        buildPage("401", response);
+                        permissionDenied(request, response);
                     }
                 }
             });
         } else {
-            checkPermission("publish-post", request.cookies.session, function(error, permission) {
+            checkPermission("publish-post", request.cookies.chassis_session, function(error, permission) {
                 if (error) {
                     handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                 } else {
                     if (permission) {
-                        Post.publishPost(request.params.param, function(error) {
+                        Post.publishPost(request.params.post, function(error, post) {
                             if (error) {
-                                buildPage("401", response);
+                                permissionDenied(request, response);
                             } else {
-                                if (response.status = "ok") {
-                                    response.redirect("/posts/" + request.params.param);
+                                if (post) {
+                                    response.set('Message', 'Jobby');
+                                    response.redirect("/post/" + post.category + "/" + post.permalink);
                                 } else {
                                     buildPage("500", response);
                                 }
                             }
                         })
                     } else {
-                        buildPage("401", response);
+                        permissionDenied(request, response);
                     }
                 }
             });
@@ -1216,14 +1281,14 @@ app.get("/delete/:param", function(request, response) {
     if (setup) {
         response.sendFile(__dirname + '/controlpanel/setup.html');
     } else {
-        checkPermission("delete-post", request.cookies.session, function(error, permission) {
+        checkPermission("delete-post", request.cookies.chassis_session, function(error, permission) {
             if (error) {
                 handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
             } else {
                 if (permission) {
                     Post.deletePost(request.params.param, function(error) {
                         if (error) {
-                            buildPage("401", response);
+                            permissionDenied(request, response);
                         } else {
                             if (response.status = "ok") {
                                 response.redirect("/" + request.params.param);
@@ -1233,7 +1298,7 @@ app.get("/delete/:param", function(request, response) {
                         }
                     })
                 } else {
-                    buildPage("401", response);
+                    permissionDenied(request, response);
                 }
             }
         });
@@ -1246,14 +1311,14 @@ app.get("/edit/:content", function(request, response) {
         response.sendFile(__dirname + '/controlpanel/setup.html');
     } else {
         if (request.params.content === "profile") {
-            checkPermission("user", request.cookies.session, function(error, permission) {
+            checkPermission("user", request.cookies.chassis_session, function(error, permission) {
                 if (error) {
                     handleError(error, "An error occurred attempting to determine the user's permissions.", request, response);
                 } else {
                     if (permission) {
-                        buildPage("edit-profile", response);
+                        buildPage("profile-edit", response);
                     } else {
-                        buildPage("401", response);
+                        response.redirect("/");
                     }
                 }
             });
@@ -1284,10 +1349,10 @@ app.get("/:path?", function(request, response) {
              * User Logged In
              */
             //url without id to be redirected to logged in user
-            case "posts":
+            case "post":
             case "user":
-                if (request.cookies.session) {  //user is logged in
-                    Session.getSession(request.cookies.session, function(error, session) {
+                if (request.cookies.chassis_session) {  //user is logged in
+                    Session.getSession(request.cookies.chassis_session, function(error, session) {
                         if (error) {
                             response.json({"data": error, "status":"error"});
                         } else {
@@ -1303,14 +1368,14 @@ app.get("/:path?", function(request, response) {
             * User Logged In
             */
             case "pending":
-                checkPermission("view-pending-posts", request.cookies.session, function(error, permitted) {
+                checkPermission("view-pending-posts", request.cookies.chassis_session, function(error, permitted) {
                     if (error) {
                         response.json({"data": "An error occurred attempting to determine the user's permissions.", "status":"error"});
                     } else {
                         if (permitted) {
                             buildPage("pending", response);
                         } else {
-                            buildPage("401", response);
+                            permissionDenied(request, response);
                         }
                     }
                 });
@@ -1320,14 +1385,14 @@ app.get("/:path?", function(request, response) {
              * Administrator
              */
             case "cp":
-                checkPermission("admin-cp", request.cookies.session, function(error, permitted) {
+                checkPermission("admin-cp", request.cookies.chassis_session, function(error, permitted) {
                     if (error) {
                         response.json({"data": "An error occurred attempting to determine the user's permissions.", "status":"error"});
                     } else {
                         if (permitted) {
                             buildPage("cp", response);
                         } else {
-                            buildPage("401", response);
+                            permissionDenied(request, response);
                         }
                     }
                 });
@@ -1379,8 +1444,8 @@ function buildPage(request, response) {
             case "posts":
                 file = "posts.html";
                 break;
-            case "users":
-                file = "users.html";
+            case "profile":
+                file = "profile.html";
                 break;
             case "search":
                 file = "search.html";
@@ -1391,8 +1456,8 @@ function buildPage(request, response) {
             case "login":
                 file = "login.html";
                 break;
-            case "edit-profile":
-                file = "edit-profile.html";
+            case "profile-edit":
+                file = "profile-edit.html";
                 break;
             case "new-post":
                 file = "post-edit.html";

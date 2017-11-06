@@ -15,7 +15,7 @@ var postSchema = mongoose.Schema({
         required: false
     },
     author: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
         required: true,
         ref: 'User'
     },
@@ -39,7 +39,6 @@ var postSchema = mongoose.Schema({
     permalink: {
         type: String,
         required: true,
-        unique: true,
         index: true
     },
     tags:
@@ -58,7 +57,7 @@ var postSchema = mongoose.Schema({
     }
 });
 
-postSchema.index({tags: "text", author: "text"});
+postSchema.index({permalink: 1, category: 1}, {"unique": true});
 
 var Post = module.exports = mongoose.model('Post', postSchema);
 
@@ -72,8 +71,8 @@ module.exports.getPendingPosts = function(callback) {
     Post.find({status: "unpublished"}, callback).populate("author");
 };
 //Get Post by permalink
-module.exports.getPostByPermalink = function(permalink, callback) {
-    Post.findOne( {permalink: permalink }, callback).populate("author");
+module.exports.getPostByPermalink = function(permalink, category, callback) {
+    Post.findOne( {permalink: permalink, category: category}, callback).populate("author", "username img bio website");
 };
 
 //Get Post by ID
@@ -82,8 +81,8 @@ module.exports.getPostByID = function(id, callback) {
 };
 
 //Get Posts by Author
-module.exports.getPostsByAuthor = function(author, callback) {
-    Post.find( {author: author, status: "published"}, callback);
+module.exports.getPostsByAuthor = function(author, callback, limit) {
+    Post.find( {author: author, status: "published"}, callback).limit(limit);
 };
 
 //New Post
@@ -107,7 +106,7 @@ module.exports.updatePost = function(id, user, callback) {
 
 //publish post
 module.exports.publishPost = function(id, callback) {
-    var query = {permalink: id};
+    var query = {_id: id};
     var update = {
         status: "published"
     };

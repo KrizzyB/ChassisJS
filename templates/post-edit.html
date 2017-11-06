@@ -34,7 +34,7 @@
     });
 </script>
 
-<div id="content" ng-controller="postEditController">
+<div id="content" ng-controller="post-edit">
 
     <div id="column-left">
         <div id="post">
@@ -66,7 +66,7 @@
                     </label>
                 </div>
                 <div class="form-feedback" id="post-permalink-feedback">Your post must contain a permalink.</div>
-                <div class="form-feedback" id="post-permalink-feedback-unique">Sorry, a post with this permalink already exists.</div>
+                <div class="form-feedback" id="post-permalink-feedback-unique">Sorry, a post with this permalink already exists in the chosen category.</div>
             </div>
 
             <div class="form-group">
@@ -108,7 +108,7 @@
                     <label for="post-categories" class="col-1 col-form-label">Category:</label>
                     <div id="post-categories">
                         <select id="category">
-                            <option ng-repeat="category in categories" ng-value="category.name">{{category.name}}</option>
+                            <option ng-repeat="category in categories" ng-value="category.id">{{category.name}}</option>
                         </select>
                     </div>
                 </div>
@@ -116,7 +116,7 @@
                 <div class="form-group">
                     <label for="post-tags" class="col-1 col-form-label">Tags:</label>
                     <div class="col-8">
-                        <input type="text" class="form-control" id="post-tags" aria-describedby="tagsHelp">
+                        <input type="text" class="form-control" id="post-tags" aria-describedby="tagsHelp" data-role="tagsinput">
                         <small id="tagsHelp" class="form-text">tags,separated,by,commas</small>
                         <div class="form-feedback" id="post-tags-feedback">Your post must contain at least 1 tag.</div>
                     </div>

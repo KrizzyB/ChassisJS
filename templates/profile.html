@@ -1,0 +1,24 @@
+<div id="content" ng-controller="profile">
+    <div style="float:right" ng-show="edit"><a href="/edit/profile">Edit Profile</a></div>
+    <div id="profile" ng-if="profile">
+        <img id="profile-picture" ng-src="{{profile.img}}">
+        <h1 id="profile-username">{{profile.username}}</h1>
+        <h3>Name:</h3> <p>{{profile.firstName}} {{profile.secondName}}</p>
+        <h3>Email:</h3> <p>{{profile.email}}</p>
+        <h3>Website:</h3> <p>{{profile.website}}</p>
+        <h3>Bio:</h3> <p>{{profile.bio}}</p>
+    </div>
+
+    <br>
+    <div id="posts-by-user" ng-if="posts">
+        <h2>Posts By {{profile.username}}</h2>
+
+        <div ng-repeat="post in posts">
+            <h2><a href="/post/{{post.category}}/{{post.permalink}}">{{post.title}}</a></h2>
+            <span>Posted {{post.postDate | date:'MMMM dd, yyyy'}}</span>
+            <p><a href="/post/{{post.category}}/{{post.permalink}}">Read -></a></p>
+            <hr>
+        </div>
+    </div>
+
+</div>
